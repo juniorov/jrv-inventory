@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const companyId = ref(null)
   const company = ref(null)
   const loading = ref(true)
+  const error = ref(null)
 
   const isAuthenticated = computed(() => !!user.value)
   const hasCompany = computed(() => !!companyId.value)
@@ -16,27 +17,34 @@ export const useAuthStore = defineStore('auth', () => {
   function init() {
     return new Promise((resolve) => {
       onAuthStateChanged(auth, async (firebaseUser) => {
-        if (firebaseUser) {
-          user.value = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-          }
-
-          const memberSnap = await getDocs(
-            query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
-          )
-
-          if (!memberSnap.empty) {
-            const member = memberSnap.docs[0].data()
-            companyId.value = member.companyId
-            const companySnap = await getDoc(doc(db, 'companies', member.companyId))
-            if (companySnap.exists()) {
-              company.value = { id: companySnap.id, ...companySnap.data() }
+        try {
+          if (firebaseUser) {
+            user.value = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL,
             }
+
+            const memberSnap = await getDocs(
+              query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
+            )
+
+            if (!memberSnap.empty) {
+              const member = memberSnap.docs[0].data()
+              companyId.value = member.companyId
+              const companySnap = await getDoc(doc(db, 'companies', member.companyId))
+              if (companySnap.exists()) {
+                company.value = { id: companySnap.id, ...companySnap.data() }
+              }
+            }
+          } else {
+            user.value = null
+            companyId.value = null
+            company.value = null
           }
-        } else {
+        } catch (e) {
+          error.value = e.message
           user.value = null
           companyId.value = null
           company.value = null
@@ -56,6 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
     await signOut(auth)
     companyId.value = null
     company.value = null
+    error.value = null
   }
 
   async function createCompany(name) {
@@ -88,42 +97,17 @@ export const useAuthStore = defineStore('auth', () => {
     return companyRef.id
   }
 
-  async function joinCompany(code) {
-    const q = query(collection(db, 'companies'), where('invitationCode', '==', code))
-    const snap = await getDocs(q)
-    if (snap.empty) throw new Error('Código de invitación inválido')
-
-    const companyDoc = snap.docs[0]
-    const memberSnap = await getDocs(
-      query(collection(db, 'companyMembers'), where('companyId', '==', companyDoc.id), where('userId', '==', user.value.uid))
-    )
-
-    if (memberSnap.empty) {
-      await addDoc(collection(db, 'companyMembers'), {
-        companyId: companyDoc.id,
-        userId: user.value.uid,
-        email: user.value.email,
-        displayName: user.value.displayName,
-        role: 'admin',
-        joinedAt: new Date().toISOString(),
-      })
-    }
-
-    companyId.value = companyDoc.id
-    company.value = { id: companyDoc.id, ...companyDoc.data() }
-  }
-
   return {
     user,
     companyId,
     company,
     loading,
+    error,
     isAuthenticated,
     hasCompany,
     init,
     loginWithGoogle,
     logout,
     createCompany,
-    joinCompany,
   }
 })

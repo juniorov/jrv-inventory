@@ -22,14 +22,26 @@ async function handleCreate() {
     loading.value = false
   }
 }
+
+async function handleLogout() {
+  await auth.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
   <div class="flex min-h-dvh items-center justify-center bg-gradient-to-br from-emerald-500 to-emerald-800 px-4">
     <div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
+      <div class="mb-2 flex items-center justify-center gap-2 text-sm text-gray-500">
+        <img v-if="auth.user?.photoURL" :src="auth.user.photoURL" class="h-6 w-6 rounded-full" />
+        <span>{{ auth.user?.email }}</span>
+        <button @click="handleLogout" class="text-xs text-red-500 hover:underline">Cerrar sesión</button>
+      </div>
+
       <div class="mb-6 text-center">
         <h1 class="text-2xl font-bold text-gray-900">Crear Empresa</h1>
-        <p class="mt-1 text-sm text-gray-500">Ingresa el nombre de tu empresa para comenzar</p>
+        <p class="mt-1 text-sm text-gray-500">Esta cuenta no tiene una empresa asociada.</p>
+        <p class="text-xs text-gray-400 mt-1">Si ya creaste una empresa desde otro dispositivo, asegúrate de usar la misma cuenta de Google o pide un link de invitación.</p>
       </div>
 
       <form @submit.prevent="handleCreate" class="space-y-4">

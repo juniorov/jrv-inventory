@@ -11,6 +11,7 @@ import { db } from '../firebase/index'
 import Modal from '../components/Modal.vue'
 import EmptyState from '../components/EmptyState.vue'
 import DeleteConfirm from '../components/DeleteConfirm.vue'
+import SearchSelect from '../components/SearchSelect.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -175,20 +176,20 @@ function getProductName(id) {
     <Modal :open="showModal" title="Agregar pedido" size="lg" @close="showModal = false">
       <form @submit.prevent="save" class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700">Cliente *</label>
-          <select v-model="form.clientId" required
-            class="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
-            <option value="" disabled>Seleccionar cliente</option>
-            <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </select>
+          <SearchSelect
+            v-model="form.clientId"
+            :options="clients.map(c => ({ id: c.id, label: c.name }))"
+            placeholder="Buscar cliente..."
+            label="Cliente *"
+          />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700">Producto *</label>
-          <select v-model="form.productId" required
-            class="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
-            <option value="" disabled>Seleccionar producto</option>
-            <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} - {{ formatCurrency(p.price) }}</option>
-          </select>
+          <SearchSelect
+            v-model="form.productId"
+            :options="products.map(p => ({ id: p.id, label: `${p.name} - ${formatCurrency(p.price)}` }))"
+            placeholder="Buscar producto..."
+            label="Producto *"
+          />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700">Cantidad *</label>

@@ -17,8 +17,6 @@ const navigation = [
   { name: 'Pagos', path: '/payments', icon: '💳' },
   { name: 'Socios', path: '/members', icon: '🤝' },
   { name: 'Invitaciones', path: '/invitations', icon: '🔗' },
-  { name: 'Gastos', path: '/expenses', icon: '💸' },
-  { name: 'Ingresos', path: '/incomes', icon: '💰' },
 ]
 
 async function handleLogout() {

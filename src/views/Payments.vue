@@ -27,7 +27,7 @@ onMounted(() => {
     loading.value = false
   })
   unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => {
-    clients.value = items
+    clients.value = items.sort((a, b) => a.name.localeCompare(b.name))
   })
   unsubOrders = subscribeToCollection(auth.companyId, 'orders', (items) => {
     orders.value = items

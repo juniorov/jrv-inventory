@@ -22,7 +22,7 @@ let unsubscribe
 
 onMounted(() => {
   unsubscribe = subscribeToCollection(auth.companyId, 'clients', (items) => {
-    clients.value = items
+    clients.value = items.sort((a, b) => a.name.localeCompare(b.name))
     loading.value = false
   })
 })

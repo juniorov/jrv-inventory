@@ -47,10 +47,10 @@ onMounted(async () => {
   if (snap.exists()) orderList.value = { id: snap.id, ...snap.data() }
 
   unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => {
-    clients.value = items
+    clients.value = items.sort((a, b) => a.name.localeCompare(b.name))
   })
   unsubProducts = subscribeToCollection(auth.companyId, 'products', (items) => {
-    products.value = items
+    products.value = items.sort((a, b) => a.name.localeCompare(b.name))
   })
   unsubOrders = subscribeToCollection(auth.companyId, 'orders', (items) => {
     orders.value = items.filter(o => o.orderListId === listId)

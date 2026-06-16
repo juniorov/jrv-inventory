@@ -56,6 +56,7 @@ async function handleLogout() {
           />
         </div>
 
+        <p v-if="auth.error" class="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{{ auth.error }}</p>
         <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
 
         <button

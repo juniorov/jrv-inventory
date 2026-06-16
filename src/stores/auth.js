@@ -64,8 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
       createdAt: new Date().toISOString(),
     })
 
-    const code = companyRef.id.slice(0, 8)
-    await setDoc(doc(db, 'companies', companyRef.id), { name, invitationCode: code, createdAt: new Date().toISOString() })
+    await setDoc(doc(db, 'companies', companyRef.id), { name, createdAt: new Date().toISOString() })
 
     await addDoc(collection(db, 'companyMembers'), {
       companyId: companyRef.id,
@@ -76,8 +75,16 @@ export const useAuthStore = defineStore('auth', () => {
       joinedAt: new Date().toISOString(),
     })
 
+    await addDoc(collection(db, `companies/${companyRef.id}/members`), {
+      name: user.value.displayName,
+      email: user.value.email,
+      status: 'active',
+      role: 'admin',
+      createdAt: new Date().toISOString(),
+    })
+
     companyId.value = companyRef.id
-    company.value = { id: companyRef.id, name, invitationCode: code }
+    company.value = { id: companyRef.id, name }
     return companyRef.id
   }
 

@@ -1,9 +1,11 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { updateDocument } from '../utils/helpers'
 
 const auth = useAuthStore()
+const router = useRouter()
 const saving = ref(false)
 const message = ref('')
 
@@ -23,13 +25,6 @@ async function save() {
     message.value = 'Error al guardar'
   } finally {
     saving.value = false
-  }
-}
-
-function copyCode() {
-  if (auth.company?.invitationCode) {
-    navigator.clipboard.writeText(auth.company.invitationCode)
-    message.value = '¡Código copiado!'
   }
 }
 </script>
@@ -56,20 +51,18 @@ function copyCode() {
       </div>
 
       <div class="rounded-2xl border bg-white p-6 shadow-sm">
-        <h2 class="mb-4 text-lg font-semibold text-gray-900">Invitación</h2>
-        <p class="mb-3 text-sm text-gray-500">Comparte este código para invitar administradores:</p>
-        <div class="flex items-center gap-3">
-          <code class="flex-1 rounded-xl bg-gray-100 px-4 py-3 text-lg font-bold tracking-wider text-emerald-700">
-            {{ auth.company?.invitationCode || '---' }}
-          </code>
-          <button @click="copyCode"
-            class="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-medium text-white hover:bg-emerald-700">
-            Copiar
+        <h2 class="mb-4 text-lg font-semibold text-gray-900">Equipo</h2>
+        <p class="mb-4 text-sm text-gray-500">Gestiona los miembros de tu empresa y genera invitaciones.</p>
+        <div class="flex flex-wrap gap-3">
+          <button @click="router.push('/members')"
+            class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700">
+            Gestionar socios
+          </button>
+          <button @click="router.push('/invitations')"
+            class="rounded-xl border border-emerald-600 px-5 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50">
+            Invitaciones
           </button>
         </div>
-        <p class="mt-2 text-sm text-gray-400">
-          Link: {{ `${location.origin}/join/${auth.company?.invitationCode}` }}
-        </p>
       </div>
     </div>
   </div>

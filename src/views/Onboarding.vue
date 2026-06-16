@@ -57,8 +57,8 @@ async function handleCreate() {
 
       <div class="mt-6 text-center">
         <p class="text-sm text-gray-500">
-          ¿Ya tienes un código de invitación?
-          <router-link to="/join/test" class="font-medium text-emerald-600 hover:text-emerald-700">Unirse a empresa</router-link>
+          ¿Tienes un link de invitación?
+          <router-link to="/invite/test" class="font-medium text-emerald-600 hover:text-emerald-700">Aceptar invitación</router-link>
         </p>
       </div>
     </div>

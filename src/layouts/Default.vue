@@ -15,6 +15,8 @@ const navigation = [
   { name: 'Listas de Pedidos', path: '/order-lists', icon: '📋' },
   { name: 'Lotes', path: '/batches', icon: '🏭' },
   { name: 'Pagos', path: '/payments', icon: '💳' },
+  { name: 'Socios', path: '/members', icon: '🤝' },
+  { name: 'Invitaciones', path: '/invitations', icon: '🔗' },
   { name: 'Gastos', path: '/expenses', icon: '💸' },
   { name: 'Ingresos', path: '/incomes', icon: '💰' },
 ]

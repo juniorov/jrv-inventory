@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase/index'
 import { useAuthStore } from '../stores/auth'
-import { onAuthStateChanged } from 'firebase/auth'
 
 const route = useRoute()
 const router = useRouter()

@@ -1,21 +1,10 @@
 <script setup>
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
-const router = useRouter()
 
-async function handleLogin() {
-  try {
-    await auth.loginWithGoogle()
-    if (auth.hasCompany) {
-      router.push('/')
-    } else {
-      router.push('/onboarding')
-    }
-  } catch (e) {
-    alert('Error al iniciar sesión: ' + e.message)
-  }
+function handleLogin() {
+  auth.loginWithGoogle()
 }
 </script>
 

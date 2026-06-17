@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -41,6 +41,13 @@ const totalPrice = computed(() => {
     return form.value.unitPrice * form.value.quantity
   }
   return 0
+})
+
+watch(() => form.value.productId, (id) => {
+  if (id) {
+    const p = products.value.find(p => p.id === id)
+    if (p) form.value.unitPrice = p.price
+  }
 })
 
 const grandTotal = computed(() => orders.value.reduce((s, o) => s + (o.total || 0), 0))
@@ -372,7 +379,6 @@ function getProductName(id) {
             :options="products.map(p => ({ id: p.id, label: `${p.name} - ${formatCurrency(p.price)}` }))"
             placeholder="Buscar producto..."
             label="Producto *"
-            :disabled="!!editingOrder"
           />
         </div>
         <div>

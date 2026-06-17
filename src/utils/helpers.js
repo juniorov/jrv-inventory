@@ -65,5 +65,5 @@ export function timestampToDate(ts) {
 }
 
 export function formatCurrency(amount) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount || 0)
+  return new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' }).format(amount || 0)
 }

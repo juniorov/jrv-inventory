@@ -174,7 +174,7 @@ function statusColor(status) {
         <div>
           <label class="block text-sm font-medium text-gray-700">Monto *</label>
           <div class="relative mt-1">
-            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">₡</span>
             <input v-model.number="form.amount" type="number" step="0.01" min="0" required placeholder="0.00"
               class="block w-full rounded-xl border border-gray-300 px-4 py-3 pl-8 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" />
           </div>

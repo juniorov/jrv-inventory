@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg', 'robots.txt'],
+      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'robots.txt'],
       manifest: {
         name: 'JRV Inventory',
         short_name: 'JRV Inventory',
@@ -22,8 +22,8 @@ export default defineConfig({
         orientation: 'portrait',
         categories: ['business', 'food'],
         icons: [
-          { src: '/icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-          { src: '/icon-512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
         screenshots: [],
         prefer_related_applications: false,

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -12,6 +12,7 @@ import Modal from '../components/Modal.vue'
 import EmptyState from '../components/EmptyState.vue'
 import DeleteConfirm from '../components/DeleteConfirm.vue'
 import SearchSelect from '../components/SearchSelect.vue'
+import html2canvas from 'html2canvas'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -34,6 +35,9 @@ const loading = ref(true)
 const form = ref({ clientId: '', productId: '', quantity: 1, unitPrice: 0 })
 const payForm = ref({ method: 'efectivo', amount: 0 })
 const searchQuery = ref('')
+const exportRef = ref(null)
+const exporting = ref(false)
+const showPreview = ref(false)
 
 const selectedProduct = computed(() => products.value.find(p => p.id === form.value.productId))
 const totalPrice = computed(() => {
@@ -241,6 +245,46 @@ function getClientName(id) {
 function getProductName(id) {
   return products.value.find(p => p.id === id)?.name || 'Eliminado'
 }
+
+async function shareAsImage() {
+  showPreview.value = true
+  await nextTick()
+  if (!exportRef.value) return
+  exporting.value = true
+  try {
+    const canvas = await html2canvas(exportRef.value, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+    })
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+    const file = new File([blob], `pedidos-${orderList.value?.date || 'lista'}.png`, { type: 'image/png' })
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        title: `Pedidos ${orderList.value?.date || ''}`,
+        files: [file],
+      })
+    } else {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = `https://wa.me/?text=${encodeURIComponent('Pedidos ' + (orderList.value?.date || ''))}`
+      a.target = '_blank'
+      a.download = file.name
+
+      const link = document.createElement('a')
+      link.href = url
+      link.download = file.name
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    }
+  } finally {
+    exporting.value = false
+    showPreview.value = false
+  }
+}
 </script>
 
 <template>
@@ -256,12 +300,24 @@ function getProductName(id) {
           </h1>
           <p v-if="orderList?.notes" class="mt-1 text-sm text-gray-500">{{ orderList.notes }}</p>
         </div>
-        <button
-          @click="openCreate"
-          class="inline-flex items-center gap-2 self-start rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:scale-[0.97]"
-        >
-          ➕ Agregar pedido
-        </button>
+        <div class="flex items-center gap-2 self-start">
+          <button
+            @click="shareAsImage"
+            :disabled="exporting"
+            class="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.97] disabled:opacity-50"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            {{ exporting ? 'Generando...' : 'Compartir' }}
+          </button>
+          <button
+            @click="openCreate"
+            class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:scale-[0.97]"
+          >
+            ➕ Agregar pedido
+          </button>
+        </div>
       </div>
     </div>
 
@@ -458,5 +514,52 @@ function getProductName(id) {
       @close="showDelete = false"
       @confirm="remove"
     />
+
+    <!-- Hidden export template -->
+    <div v-show="showPreview" class="fixed left-0 top-0 z-[-1] w-[400px] bg-white p-6" style="font-family: system-ui, -apple-system, sans-serif;">
+      <div ref="exportRef" class="w-full">
+        <div class="mb-4 border-b border-gray-200 pb-4">
+          <h1 style="font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 4px 0;">Pedidos {{ orderList?.date || '' }}</h1>
+          <p v-if="orderList?.notes" style="font-size: 13px; color: #6b7280; margin: 0;">{{ orderList.notes }}</p>
+        </div>
+
+        <div class="mb-4">
+          <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Resumen por producto</h2>
+          <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+            <tr v-for="p in productsSummary" :key="p.name" style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 6px 0; color: #374151;">{{ p.name }}</td>
+              <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #111827;">{{ p.quantity }} uds</td>
+              <td style="padding: 6px 0; text-align: right; color: #6b7280;">{{ formatCurrency(p.total) }}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="mb-4">
+          <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Pedidos</h2>
+          <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+            <tr v-for="order in filteredOrders" :key="order.id" style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 6px 0; color: #111827; font-weight: 500;">{{ getClientName(order.clientId) }}</td>
+              <td style="padding: 6px 0; color: #6b7280;">{{ getProductName(order.productId) }} × {{ order.quantity }}</td>
+              <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 500;">{{ formatCurrency(order.total) }}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #f0fdf4; border-radius: 12px; padding: 12px 16px; border: 1px solid #bbf7d0;">
+          <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; color: #111827;">
+            <span>Total general</span>
+            <span style="color: #059669;">{{ formatCurrency(grandTotal) }}</span>
+          </div>
+          <div v-if="grandPaid > 0" style="display: flex; justify-content: space-between; font-size: 13px; color: #059669; margin-top: 4px;">
+            <span>Pagado</span>
+            <span style="font-weight: 500;">{{ formatCurrency(grandPaid) }}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; color: #6b7280; margin-top: 4px;">
+            <span>Pendiente</span>
+            <span style="font-weight: 500;">{{ formatCurrency(grandTotal - grandPaid) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

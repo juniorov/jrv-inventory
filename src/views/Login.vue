@@ -1,10 +1,17 @@
 <script setup>
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
+const router = useRouter()
 
-function handleLogin() {
-  auth.loginWithGoogle()
+async function handleLogin() {
+  try {
+    await auth.loginWithGoogle()
+    router.push('/')
+  } catch (e) {
+    console.error('Login error:', e)
+  }
 }
 </script>
 

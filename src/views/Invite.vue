@@ -13,6 +13,7 @@ const token = route.params.token
 const state = ref('verifying')
 const error = ref('')
 const invitation = ref(null)
+const loggingIn = ref(false)
 
 onMounted(async () => {
   try {
@@ -58,6 +59,16 @@ onMounted(async () => {
     error.value = 'No se pudo verificar la invitación. Intenta de nuevo.'
   }
 })
+
+async function handleLoginFromInvite() {
+  loggingIn.value = true
+  try {
+    await authStore.loginWithGoogle()
+    window.location.reload()
+  } finally {
+    loggingIn.value = false
+  }
+}
 
 async function handleAccept() {
   if (!invitation.value || !authStore.user) return
@@ -110,8 +121,9 @@ async function handleAccept() {
         </p>
         <p class="mb-6 text-sm text-gray-500">Inicia sesión con Google para aceptar la invitación</p>
         <button
-          @click="authStore.loginWithGoogle()"
-          class="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          @click="handleLoginFromInvite"
+          :disabled="loggingIn"
+          class="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
         >
           <svg class="h-5 w-5" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>

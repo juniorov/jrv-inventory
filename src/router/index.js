@@ -6,7 +6,7 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: () => import('../views/Login.vue'),
-    meta: { guest: true },
+    meta: { public: true },
   },
   {
     path: '/onboarding',

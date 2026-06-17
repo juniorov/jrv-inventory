@@ -70,10 +70,20 @@ function statusClass(status) {
 
 const filteredOrders = computed(() => {
   const q = searchQuery.value.toLowerCase().trim()
-  if (!q) return orders.value
-  return orders.value.filter(o => {
-    const name = getClientName(o.clientId).toLowerCase()
-    return name.includes(q)
+  let result = orders.value
+  if (q) {
+    result = result.filter(o => {
+      const name = getClientName(o.clientId).toLowerCase()
+      return name.includes(q)
+    })
+  }
+  return [...result].sort((a, b) => {
+    const aPaid = orderStatus(a) === 'pagado' ? 1 : 0
+    const bPaid = orderStatus(b) === 'pagado' ? 1 : 0
+    if (aPaid !== bPaid) return aPaid - bPaid
+    const aName = getClientName(a.clientId).toLowerCase()
+    const bName = getClientName(b.clientId).toLowerCase()
+    return aName.localeCompare(bName)
   })
 })
 
@@ -347,8 +357,8 @@ function getProductName(id) {
           <label class="block text-sm font-medium text-gray-700">Método de pago</label>
           <select v-model="payForm.method"
             class="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
-            <option value="efectivo">Efectivo</option>
             <option value="sinpe">Sinpe Móvil</option>
+            <option value="efectivo">Efectivo</option>
             <option value="otro">Otro</option>
           </select>
         </div>

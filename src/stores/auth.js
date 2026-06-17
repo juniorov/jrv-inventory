@@ -1,17 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
+import { signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc, collection, query, where, getDocs, addDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../firebase/index'
-
-function waitForAuthReady() {
-  return new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      unsub()
-      resolve(user)
-    })
-  })
-}
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -23,86 +14,51 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!user.value)
   const hasCompany = computed(() => !!companyId.value)
 
-  async function init() {
-    const firebaseUser = await waitForAuthReady()
-    error.value = null
+  function init() {
+    return new Promise((resolve) => {
+      const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+        unsub()
+        error.value = null
 
-    if (firebaseUser) {
-      user.value = {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        displayName: firebaseUser.displayName,
-        photoURL: firebaseUser.photoURL,
-      }
-
-      try {
-        const memberSnap = await getDocs(
-          query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
-        )
-
-        if (!memberSnap.empty) {
-          const member = memberSnap.docs[0].data()
-          companyId.value = member.companyId
-          const companySnap = await getDoc(doc(db, 'companies', member.companyId))
-          if (companySnap.exists()) {
-            company.value = { id: companySnap.id, ...companySnap.data() }
-          }
-        }
-      } catch (e) {
-        error.value = e.message
-      }
-    }
-
-    loading.value = false
-
-    onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        if (!user.value) {
+        if (firebaseUser) {
           user.value = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
           }
-          await reloadCompany()
+
+          try {
+            const memberSnap = await getDocs(
+              query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
+            )
+
+            if (!memberSnap.empty) {
+              const member = memberSnap.docs[0].data()
+              companyId.value = member.companyId
+              const companySnap = await getDoc(doc(db, 'companies', member.companyId))
+              if (companySnap.exists()) {
+                company.value = { id: companySnap.id, ...companySnap.data() }
+              }
+            }
+          } catch (e) {
+            error.value = e.message
+          }
         }
-      } else {
-        user.value = null
-        companyId.value = null
-        company.value = null
-      }
+
+        loading.value = false
+        resolve()
+      })
     })
   }
 
   async function loginWithGoogle() {
-    const result = await signInWithPopup(auth, googleProvider)
-
-    user.value = {
-      uid: result.user.uid,
-      email: result.user.email,
-      displayName: result.user.displayName,
-      photoURL: result.user.photoURL,
-    }
-
-    try {
-      const memberSnap = await getDocs(
-        query(collection(db, 'companyMembers'), where('userId', '==', result.user.uid))
-      )
-      if (!memberSnap.empty) {
-        const member = memberSnap.docs[0].data()
-        companyId.value = member.companyId
-        const companySnap = await getDoc(doc(db, 'companies', member.companyId))
-        if (companySnap.exists()) {
-          company.value = { id: companySnap.id, ...companySnap.data() }
-        }
-      }
-    } catch (e) {
-      error.value = e.message
-    }
+    await signInWithRedirect(auth, googleProvider)
   }
 
   async function logout() {
     await signOut(auth)
+    user.value = null
     companyId.value = null
     company.value = null
     error.value = null

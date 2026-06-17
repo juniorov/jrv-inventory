@@ -11,6 +11,7 @@ import DeleteConfirm from '../components/DeleteConfirm.vue'
 const auth = useAuthStore()
 const router = useRouter()
 const lists = ref([])
+const orders = ref([])
 const showModal = ref(false)
 const editing = ref(null)
 const showDelete = ref(false)
@@ -20,16 +21,38 @@ const loading = ref(true)
 
 const form = ref({ date: new Date().toISOString().split('T')[0], notes: '' })
 
-let unsubscribe
+let unsubLists, unsubOrders
 
 onMounted(() => {
-  unsubscribe = subscribeToCollection(auth.companyId, 'orderLists', (items) => {
+  unsubLists = subscribeToCollection(auth.companyId, 'orderLists', (items) => {
     lists.value = items
     loading.value = false
   })
+  unsubOrders = subscribeToCollection(auth.companyId, 'orders', (items) => {
+    orders.value = items
+  })
 })
 
-onUnmounted(() => unsubscribe?.())
+onUnmounted(() => {
+  unsubLists?.()
+  unsubOrders?.()
+})
+
+function listHasPending(listId) {
+  const listOrders = orders.value.filter(o => o.orderListId === listId)
+  return listOrders.some(o => {
+    const paid = (o.payments || []).reduce((s, p) => s + (p.amount || 0), 0)
+    return paid < (o.total || 0)
+  })
+}
+
+function pendingCount(listId) {
+  return orders.value.filter(o => {
+    if (o.orderListId !== listId) return false
+    const paid = (o.payments || []).reduce((s, p) => s + (p.amount || 0), 0)
+    return paid < (o.total || 0)
+  }).length
+}
 
 function resetForm() {
   form.value = { date: new Date().toISOString().split('T')[0], notes: '' }
@@ -106,7 +129,22 @@ async function remove() {
         class="flex items-center justify-between rounded-2xl border bg-white p-4 shadow-sm"
       >
         <div class="min-w-0 flex-1">
-          <h3 class="font-semibold text-gray-900">{{ list.date || 'Sin fecha' }}</h3>
+          <div class="flex items-center gap-2">
+            <h3 class="font-semibold text-gray-900">{{ list.date || 'Sin fecha' }}</h3>
+            <span
+              v-if="listHasPending(list.id)"
+              class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"
+            >
+              <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+              {{ pendingCount(list.id) }} pendiente{{ pendingCount(list.id) !== 1 ? 's' : '' }}
+            </span>
+            <span
+              v-else
+              class="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"
+            >
+              Pagado
+            </span>
+          </div>
           <p v-if="list.notes" class="mt-1 text-sm text-gray-500 truncate">{{ list.notes }}</p>
           <p class="mt-1 text-xs text-gray-400">
             {{ list.createdAt ? timestampToDate(list.createdAt) : '' }}

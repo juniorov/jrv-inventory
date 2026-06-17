@@ -1,31 +1,46 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { subscribeToCollection, createDocument } from '../utils/helpers'
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore'
+import { subscribeToCollection } from '../utils/helpers'
+import { collection, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase/index'
 import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
 
 const auth = useAuthStore()
 const members = ref([])
+const invitations = ref([])
 const loading = ref(true)
 const generatedLinks = ref({})
 
-let unsubscribe
+let unsubMembers, unsubInvitations
 
 onMounted(() => {
-  unsubscribe = subscribeToCollection(auth.companyId, 'members', (items) => {
+  unsubMembers = subscribeToCollection(auth.companyId, 'members', (items) => {
     members.value = items
     loading.value = false
   })
+  const invRef = collection(db, 'invitations')
+  const invQ = query(invRef, where('companyId', '==', auth.companyId), where('status', '==', 'pending'))
+  unsubInvitations = onSnapshot(invQ, (snapshot) => {
+    invitations.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+  })
 })
 
-onUnmounted(() => unsubscribe?.())
+onUnmounted(() => {
+  unsubMembers?.()
+  unsubInvitations?.()
+})
 
 const pendingMembers = computed(() =>
   members.value.filter(m => m.status === 'pending')
 )
+
+function existingLink(memberId) {
+  const inv = invitations.value.find(i => i.memberId === memberId)
+  if (!inv) return null
+  return `${location.origin}/invite/${inv.id}`
+}
 
 async function generateLink(member) {
   const token = crypto.randomUUID().slice(0, 12)
@@ -43,18 +58,18 @@ async function generateLink(member) {
 
     const link = `${location.origin}/invite/${token}`
     generatedLinks.value[member.id] = link
-
     await navigator.clipboard.writeText(link)
   } catch {
     generatedLinks.value[member.id] = 'error'
   }
 }
 
-function copyLink(memberId) {
-  const link = generatedLinks.value[memberId]
-  if (link && link !== 'generando...' && link !== 'error') {
-    navigator.clipboard.writeText(link)
-  }
+function copyLink(link) {
+  if (link) navigator.clipboard.writeText(link)
+}
+
+function linkToShow(memberId) {
+  return generatedLinks.value[memberId] || existingLink(memberId)
 }
 </script>
 
@@ -88,7 +103,7 @@ function copyLink(memberId) {
             <p class="text-sm text-gray-500">{{ member.email }}</p>
           </div>
           <button
-            v-if="!generatedLinks[member.id]"
+            v-if="!linkToShow(member.id)"
             @click="generateLink(member)"
             class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:scale-[0.97]"
           >
@@ -96,7 +111,7 @@ function copyLink(memberId) {
           </button>
         </div>
 
-        <div v-if="generatedLinks[member.id]">
+        <div v-if="linkToShow(member.id)">
           <div v-if="generatedLinks[member.id] === 'generando...'" class="text-sm text-gray-400">
             Generando...
           </div>
@@ -105,12 +120,12 @@ function copyLink(memberId) {
           </div>
           <div v-else class="flex items-center gap-2">
             <input
-              :value="generatedLinks[member.id]"
+              :value="linkToShow(member.id)"
               readonly
               class="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600"
             />
             <button
-              @click="copyLink(member.id)"
+              @click="copyLink(linkToShow(member.id))"
               class="rounded-lg bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-200"
             >
               Copiar

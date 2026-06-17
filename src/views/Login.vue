@@ -1,10 +1,17 @@
 <script setup>
+import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
+const loggingIn = ref(false)
 
-function handleLogin() {
-  auth.loginWithGoogle()
+async function handleLogin() {
+  loggingIn.value = true
+  try {
+    await auth.loginWithGoogle()
+  } catch {
+    loggingIn.value = false
+  }
 }
 </script>
 
@@ -21,7 +28,8 @@ function handleLogin() {
 
       <button
         @click="handleLogin"
-        class="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.98]"
+        :disabled="loggingIn"
+        class="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.98] disabled:opacity-60"
       >
         <svg class="h-5 w-5" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>

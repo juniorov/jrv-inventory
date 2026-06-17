@@ -6,9 +6,8 @@ import { subscribeToCollection, formatCurrency } from '../utils/helpers'
 const auth = useAuthStore()
 
 const stats = ref({ clients: 0, products: 0, orders: 0, pendingPayments: 0, totalIncome: 0, totalExpenses: 0 })
-const recentOrders = ref([])
 
-let unsubClients, unsubProducts, unsubOrders, unsubPayments, unsubExpenses, unsubIncomes
+let unsubClients, unsubProducts, unsubOrders, unsubPayments, unsubBatches
 
 onMounted(() => {
   unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => { stats.value.clients = items.length })
@@ -16,19 +15,15 @@ onMounted(() => {
 
   unsubOrders = subscribeToCollection(auth.companyId, 'orders', (items) => {
     stats.value.orders = items.length
-    recentOrders.value = items.slice(-5).reverse()
+    stats.value.totalIncome = items.reduce((s, o) => s + (o.total || 0), 0)
   }, 'createdAt', 'desc')
 
   unsubPayments = subscribeToCollection(auth.companyId, 'payments', (items) => {
     stats.value.pendingPayments = items.length
   })
 
-  unsubExpenses = subscribeToCollection(auth.companyId, 'expenses', (items) => {
-    stats.value.totalExpenses = items.reduce((s, i) => s + (i.amount || 0), 0)
-  })
-
-  unsubIncomes = subscribeToCollection(auth.companyId, 'incomes', (items) => {
-    stats.value.totalIncome = items.reduce((s, i) => s + (i.amount || 0), 0)
+  unsubBatches = subscribeToCollection(auth.companyId, 'batches', (items) => {
+    stats.value.totalExpenses = items.reduce((s, b) => s + (b.totalCost || 0), 0)
   })
 })
 
@@ -37,8 +32,7 @@ onUnmounted(() => {
   unsubProducts?.()
   unsubOrders?.()
   unsubPayments?.()
-  unsubExpenses?.()
-  unsubIncomes?.()
+  unsubBatches?.()
 })
 </script>
 

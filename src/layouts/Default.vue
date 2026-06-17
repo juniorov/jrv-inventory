@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -7,6 +7,25 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const sidebarOpen = ref(false)
+const installPrompt = ref(null)
+const showInstall = ref(false)
+
+onMounted(() => {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    installPrompt.value = e
+    showInstall.value = true
+  })
+})
+
+function installApp() {
+  if (!installPrompt.value) return
+  installPrompt.value.prompt()
+  installPrompt.value.userChoice.then((result) => {
+    if (result.outcome === 'accepted') showInstall.value = false
+    installPrompt.value = null
+  })
+}
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: '📊' },
@@ -55,6 +74,15 @@ function isActive(path) {
         </svg>
       </button>
     </header>
+
+    <!-- Install banner -->
+    <div v-if="showInstall" class="flex items-center justify-between bg-emerald-600 px-4 py-2 text-sm text-white lg:hidden">
+      <span>Instala la app para mejor experiencia</span>
+      <div class="flex gap-2">
+        <button @click="showInstall = false" class="rounded px-2 py-1 text-emerald-200 hover:text-white">Ahora no</button>
+        <button @click="installApp" class="rounded bg-white px-3 py-1 font-medium text-emerald-700 hover:bg-emerald-50">Instalar</button>
+      </div>
+    </div>
 
     <!-- Overlay mobile -->
     <div v-if="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 z-20 bg-black/40 lg:hidden"></div>

@@ -224,8 +224,8 @@ async function removeClient(clientId) {
         </div>
         <div class="flex gap-2">
           <button
-            v-if="client.mapsUrl"
-            @click="openMaps(client.mapsUrl)"
+            v-if="client.googleMapsUrl"
+            @click="openMaps(client.googleMapsUrl)"
             class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
           >
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

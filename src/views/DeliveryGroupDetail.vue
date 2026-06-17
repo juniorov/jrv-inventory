@@ -19,7 +19,6 @@ const groupId = route.params.id
 
 const group = ref(null)
 const clients = ref([])
-const products = ref([])
 const orders = ref([])
 const loading = ref(true)
 const saving = ref(false)
@@ -34,7 +33,7 @@ const showPayModal = ref(false)
 const payForm = ref({ method: 'efectivo', amount: 0 })
 const payingClientId = ref(null)
 
-let unsubGroup, unsubClients, unsubProducts, unsubOrders
+let unsubClients, unsubOrders
 
 onMounted(async () => {
   const snap = await getDoc(doc(db, `companies/${auth.companyId}/deliveryGroups`, groupId))
@@ -48,9 +47,6 @@ onMounted(async () => {
   unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => {
     clients.value = items.sort((a, b) => a.name.localeCompare(b.name))
   })
-  unsubProducts = subscribeToCollection(auth.companyId, 'products', (items) => {
-    products.value = items.sort((a, b) => a.name.localeCompare(b.name))
-  })
   unsubOrders = subscribeToCollection(auth.companyId, 'orders', (items) => {
     orders.value = items
     loading.value = false
@@ -59,7 +55,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unsubClients?.()
-  unsubProducts?.()
   unsubOrders?.()
 })
 
@@ -181,10 +176,6 @@ function getClientName(id) {
   return clients.value.find(c => c.id === id)?.name || 'Eliminado'
 }
 
-function getProductName(id) {
-  return products.value.find(p => p.id === id)?.name || 'Eliminado'
-}
-
 async function removeClient(clientId) {
   if (!confirm('¿Quitar este cliente del grupo?')) return
   const ids = (group.value?.clientIds || []).filter(id => id !== clientId)
@@ -286,13 +277,7 @@ async function removeClient(clientId) {
       size="lg"
       @close="showClientModal = false"
     >
-      <div v-if="selectedClient" class="space-y-5">
-        <!-- Phone -->
-        <p v-if="selectedClient.phone" class="text-sm text-gray-600">
-          📞 {{ selectedClient.phone }}
-        </p>
-
-        <!-- Google Maps -->
+      <div v-if="selectedClient" class="space-y-4">
         <button
           v-if="selectedClient.mapsUrl"
           @click="openMaps(selectedClient.mapsUrl)"
@@ -307,47 +292,6 @@ async function removeClient(clientId) {
         <p v-else class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-400 text-center">
           Sin ubicación registrada
         </p>
-
-        <!-- Orders summary -->
-        <div>
-          <h4 class="mb-2 text-sm font-semibold text-gray-700">Pedidos</h4>
-          <div v-if="getClientOrders(selectedClient.id).length" class="space-y-2">
-            <div
-              v-for="order in getClientOrders(selectedClient.id)"
-              :key="order.id"
-              class="rounded-lg border bg-white p-3 text-sm"
-            >
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="font-medium text-gray-900">{{ getProductName(order.productId) }} × {{ order.quantity }}</p>
-                  <p class="text-gray-500">Total: {{ formatCurrency(order.total) }}</p>
-                </div>
-                <span v-if="paidAmount(selectedClient.id) > 0" class="text-xs text-gray-400">
-                  Pagado: {{ formatCurrency((order.payments || []).reduce((s, p) => s + (p.amount || 0), 0)) }}
-                </span>
-              </div>
-            </div>
-          </div>
-          <p v-else class="text-sm text-gray-400">Sin pedidos registrados</p>
-        </div>
-
-        <!-- Payment summary -->
-        <div class="rounded-xl bg-gray-50 p-4 text-sm">
-          <div class="flex items-center justify-between">
-            <span class="text-gray-600">Total pedidos</span>
-            <span class="font-semibold">{{ formatCurrency(totalOwed(selectedClient.id)) }}</span>
-          </div>
-          <div class="mt-1 flex items-center justify-between">
-            <span class="text-gray-600">Pagado</span>
-            <span class="font-semibold text-emerald-600">{{ formatCurrency(paidAmount(selectedClient.id)) }}</span>
-          </div>
-          <div class="mt-1 flex items-center justify-between border-t pt-1">
-            <span class="text-gray-600">Pendiente</span>
-            <span :class="['font-semibold', totalOwed(selectedClient.id) - paidAmount(selectedClient.id) <= 0 ? 'text-emerald-600' : 'text-red-600']">
-              {{ formatCurrency(totalOwed(selectedClient.id) - paidAmount(selectedClient.id)) }}
-            </span>
-          </div>
-        </div>
 
         <button
           v-if="clientStatus(selectedClient.id) !== 'pagado' && clientStatus(selectedClient.id) !== 'sin-pedidos'"

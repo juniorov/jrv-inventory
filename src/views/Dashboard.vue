@@ -23,8 +23,16 @@ const orders = ref([])
 const batches = ref([])
 const orderLists = ref([])
 
+const batchOrderListIds = computed(() =>
+  new Set(batches.value.filter(b => b.orderListId).map(b => b.orderListId))
+)
+
+const producedOrders = computed(() =>
+  orders.value.filter(o => batchOrderListIds.value.has(o.orderListId))
+)
+
 const stats = computed(() => {
-  const totalIncome = orders.value.reduce((s, o) => s + (o.total || 0), 0)
+  const totalIncome = producedOrders.value.reduce((s, o) => s + (o.total || 0), 0)
   const totalExpenses = batches.value.reduce((s, b) => s + (b.totalCost || 0), 0)
   const pendingPayments = orders.value.filter(o => {
     const paid = (o.payments || []).reduce((s, p) => s + (p.amount || 0), 0)
@@ -48,7 +56,7 @@ const monthlyProfit = computed(() => {
     let month = b.date?.slice(0, 7)
     if (!month) return
 
-    const listOrders = orders.value.filter(o => o.orderListId === b.orderListId)
+    const listOrders = producedOrders.value.filter(o => o.orderListId === b.orderListId)
     const income = listOrders.reduce((s, o) => s + (o.total || 0), 0)
     const cost = b.totalCost || 0
 

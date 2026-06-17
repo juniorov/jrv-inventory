@@ -26,12 +26,13 @@ const showModal = ref(false)
 const showPayModal = ref(false)
 const showDelete = ref(false)
 const payingOrder = ref(null)
+const editingOrder = ref(null)
 const deletingId = ref(null)
 const saving = ref(false)
 const loading = ref(true)
 
 const form = ref({ clientId: '', productId: '', quantity: 1, unitPrice: 0 })
-const payForm = ref({ method: 'sinpe', amount: 0 })
+const payForm = ref({ method: 'efectivo', amount: 0 })
 const searchQuery = ref('')
 
 const selectedProduct = computed(() => products.value.find(p => p.id === form.value.productId))
@@ -113,6 +114,7 @@ onUnmounted(() => {
 
 function resetForm() {
   form.value = { clientId: '', productId: '', quantity: 1, unitPrice: 0 }
+  editingOrder.value = null
 }
 
 function openCreate() {
@@ -120,19 +122,37 @@ function openCreate() {
   showModal.value = true
 }
 
+function openEdit(order) {
+  editingOrder.value = order
+  form.value = {
+    clientId: order.clientId,
+    productId: order.productId,
+    quantity: order.quantity,
+    unitPrice: order.unitPrice,
+  }
+  showModal.value = true
+}
+
 async function save() {
   if (!form.value.clientId || !form.value.productId || !form.value.quantity || !form.value.unitPrice) return
   saving.value = true
   try {
-    await createDocument(auth.companyId, 'orders', {
-      orderListId: listId,
+    const data = {
       clientId: form.value.clientId,
       productId: form.value.productId,
       quantity: Number(form.value.quantity),
       unitPrice: Number(form.value.unitPrice),
       total: Number(form.value.unitPrice) * Number(form.value.quantity),
-      payments: [],
-    })
+    }
+    if (editingOrder.value) {
+      await updateDocument(auth.companyId, 'orders', editingOrder.value.id, data)
+    } else {
+      await createDocument(auth.companyId, 'orders', {
+        ...data,
+        orderListId: listId,
+        payments: [],
+      })
+    }
     showModal.value = false
     resetForm()
   } finally {
@@ -285,6 +305,9 @@ function getProductName(id) {
               >
                 Pagar
               </button>
+              <button @click="openEdit(order)" class="rounded-lg p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600">
+                ✏️
+              </button>
               <button @click="confirmDelete(order.id)" class="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600">
                 🗑️
               </button>
@@ -309,7 +332,7 @@ function getProductName(id) {
       </div>
     </div>
 
-    <Modal :open="showModal" title="Agregar pedido" size="lg" @close="showModal = false">
+    <Modal :open="showModal" :title="editingOrder ? 'Editar pedido' : 'Agregar pedido'" size="lg" @close="showModal = false">
       <form @submit.prevent="save" class="space-y-4">
         <div>
           <SearchSelect
@@ -317,6 +340,7 @@ function getProductName(id) {
             :options="clients.map(c => ({ id: c.id, label: c.name }))"
             placeholder="Buscar cliente..."
             label="Cliente *"
+            :disabled="!!editingOrder"
           />
         </div>
         <div>
@@ -325,6 +349,7 @@ function getProductName(id) {
             :options="products.map(p => ({ id: p.id, label: `${p.name} - ${formatCurrency(p.price)}` }))"
             placeholder="Buscar producto..."
             label="Producto *"
+            :disabled="!!editingOrder"
           />
         </div>
         <div>
@@ -354,7 +379,7 @@ function getProductName(id) {
           </button>
           <button type="submit" :disabled="saving || !form.clientId || !form.productId || !form.unitPrice"
             class="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
-            {{ saving ? 'Guardando...' : 'Agregar' }}
+            {{ saving ? 'Guardando...' : editingOrder ? 'Guardar cambios' : 'Agregar' }}
           </button>
         </div>
       </form>

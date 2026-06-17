@@ -6,6 +6,7 @@ const props = defineProps({
   modelValue: { type: [String, null], default: null },
   placeholder: { type: String, default: 'Buscar...' },
   label: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -83,11 +84,15 @@ function onKeydown(e) {
         @blur="onInputBlur"
         @keydown="onKeydown"
         :placeholder="placeholder"
-        class="block w-full rounded-xl border border-gray-300 px-4 py-3 pr-10 text-sm placeholder-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+        :readonly="disabled"
+        :class="[
+          'block w-full rounded-xl border px-4 py-3 pr-10 text-sm placeholder-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200',
+          disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'border-gray-300'
+        ]"
       />
 
       <button
-        v-if="props.modelValue && !open"
+        v-if="props.modelValue && !open && !disabled"
         @click="clear"
         type="button"
         class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:text-gray-600"

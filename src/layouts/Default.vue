@@ -20,6 +20,14 @@ const navigation = [
   { name: 'Invitaciones', path: '/invitations', icon: '🔗' },
 ]
 
+const bottomNav = [
+  { name: 'Dashboard', path: '/', icon: '📊' },
+  { name: 'Pedidos', path: '/order-lists', icon: '📋' },
+  { name: 'Clientes', path: '/clients', icon: '👥' },
+  { name: 'Productos', path: '/products', icon: '📦' },
+  { name: 'Entrega', path: '/delivery-groups', icon: '🚚' },
+]
+
 async function handleLogout() {
   await auth.logout()
   router.push('/login')
@@ -40,9 +48,7 @@ function isActive(path) {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
-      <div class="flex items-center gap-2">
-        <span class="font-semibold text-emerald-700">{{ auth.company?.name }}</span>
-      </div>
+      <span class="font-semibold text-emerald-700">{{ auth.company?.name }}</span>
       <button @click="handleLogout" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Cerrar sesión">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -87,7 +93,16 @@ function isActive(path) {
           </router-link>
         </nav>
 
-        <div class="border-t p-4">
+        <div class="border-t p-4 lg:hidden">
+          <button @click="handleLogout" class="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Cerrar sesión
+          </button>
+        </div>
+
+        <div class="hidden border-t p-4 lg:block">
           <div class="flex items-center gap-3">
             <img
               v-if="auth.user?.photoURL"
@@ -108,8 +123,34 @@ function isActive(path) {
     </aside>
 
     <!-- Main content -->
-    <main class="flex-1 overflow-y-auto bg-gray-50 p-4 lg:p-6">
+    <main class="flex-1 overflow-y-auto bg-gray-50 pb-16 lg:pb-0 lg:p-6 p-4">
       <router-view />
     </main>
+
+    <!-- Bottom tab bar (mobile) -->
+    <nav class="fixed bottom-0 left-0 right-0 z-10 border-t bg-white lg:hidden safe-area-bottom">
+      <div class="flex items-center justify-around">
+        <router-link
+          v-for="item in bottomNav"
+          :key="item.path"
+          :to="item.path"
+          :class="[
+            'flex flex-col items-center gap-0.5 py-1.5 px-2 text-xs font-medium transition-colors min-w-0 flex-1',
+            isActive(item.path)
+              ? 'text-emerald-600'
+              : 'text-gray-500'
+          ]"
+        >
+          <span class="text-xl">{{ item.icon }}</span>
+          <span class="truncate">{{ item.name }}</span>
+        </router-link>
+      </div>
+    </nav>
   </div>
 </template>
+
+<style scoped>
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+</style>

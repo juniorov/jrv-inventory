@@ -18,7 +18,7 @@ const routes = [
     path: '/invite/:token',
     name: 'Invite',
     component: () => import('../views/Invite.vue'),
-    meta: { guest: true },
+    meta: { public: true, skipAuthRedirect: true },
   },
   {
     path: '/',
@@ -51,20 +51,31 @@ router.beforeEach(async (to, from, next) => {
   const isAuthenticated = authStore.isAuthenticated
   const requiresAuth = to.matched.some((r) => r.meta.requiresAuth)
   const requiresCompany = to.matched.some((r) => r.meta.requiresCompany)
-  const isGuest = to.matched.some((r) => r.meta.guest)
-  if (!isAuthenticated && requiresAuth) {
-    next('/login')
-  } else if (isAuthenticated && isGuest) {
-    next('/')
-  } else if (isAuthenticated && requiresCompany) {
-    if (!authStore.hasCompany) {
-      next('/onboarding')
-    } else {
-      next()
-    }
-  } else {
-    next()
+  const isPublic = to.matched.some((r) => r.meta.public)
+  const skipAuthRedirect = to.matched.some((r) => r.meta.skipAuthRedirect)
+
+  if (isPublic && isAuthenticated && !skipAuthRedirect) {
+    return next('/')
   }
+
+  if (!isAuthenticated && requiresAuth) {
+    return next('/login')
+  }
+
+  if (isAuthenticated && requiresCompany) {
+    if (!authStore.hasCompany) {
+      return next('/onboarding')
+    }
+  }
+
+  // Pending invite redirect after login
+  const pendingInvite = sessionStorage.getItem('pendingInvite')
+  if (pendingInvite && to.name !== 'Invite') {
+    sessionStorage.removeItem('pendingInvite')
+    return next({ name: 'Invite', params: { token: pendingInvite } })
+  }
+
+  next()
 })
 
 export default router

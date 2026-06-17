@@ -8,82 +8,101 @@ import { useAuthStore } from '../stores/auth'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-
 const token = route.params.token
+
 const state = ref('verifying')
 const error = ref('')
+const invitation = ref(null)
 
 onMounted(async () => {
-  const invitationSnap = await getDoc(doc(db, 'invitations', token))
+  const snap = await getDoc(doc(db, 'invitations', token))
 
-  if (!invitationSnap.exists() || invitationSnap.data().status !== 'pending') {
+  if (!snap.exists()) {
     state.value = 'error'
-    error.value = 'Este link de invitación no es válido o ya fue usado.'
+    error.value = 'Este link de invitación no es válido.'
     return
   }
 
-  const invitation = invitationSnap.data()
+  const inv = snap.data()
 
-  if (!auth.currentUser) {
+  if (inv.status === 'accepted') {
+    state.value = 'error'
+    error.value = 'Esta invitación ya fue utilizada.'
+    return
+  }
+
+  if (inv.expiresAt?.toDate?.() < new Date()) {
+    state.value = 'error'
+    error.value = 'Esta invitación ha expirado.'
+    return
+  }
+
+  invitation.value = inv
+
+  if (!authStore.isAuthenticated) {
+    sessionStorage.setItem('pendingInvite', token)
     state.value = 'login'
     return
   }
 
-  await acceptInvitation(invitation)
+  if (authStore.user.email !== inv.email) {
+    state.value = 'error'
+    error.value = `Esta invitación es para ${inv.email}. Inicia sesión con esa cuenta.`
+    return
+  }
+
+  state.value = 'ready'
 })
 
-async function acceptInvitation(invitation) {
-  if (auth.currentUser.email !== invitation.email) {
-    state.value = 'error'
-    error.value = `Esta invitación es para ${invitation.email}. Inicia sesión con esa cuenta.`
-    return
-  }
-
+async function handleAccept() {
+  if (!invitation.value || !authStore.user) return
   state.value = 'accepting'
 
-  const memberSnap = await getDocs(
-    query(collection(db, 'companyMembers'), where('userId', '==', auth.currentUser.uid))
-  )
+  try {
+    await addDoc(collection(db, 'companyMembers'), {
+      companyId: invitation.value.companyId,
+      userId: authStore.user.uid,
+      email: authStore.user.email,
+      displayName: authStore.user.displayName,
+      role: 'member',
+      joinedAt: new Date().toISOString(),
+    })
 
-  if (!memberSnap.empty) {
+    if (invitation.value.memberId) {
+      const memberRef = doc(db, `companies/${invitation.value.companyId}/members`, invitation.value.memberId)
+      await updateDoc(memberRef, { status: 'active' })
+    }
+
+    await updateDoc(doc(db, 'invitations', token), { status: 'accepted', acceptedAt: new Date().toISOString() })
+
+    await authStore.reloadCompany()
+
+    state.value = 'done'
+  } catch {
     state.value = 'error'
-    error.value = 'Ya perteneces a una empresa.'
-    return
+    error.value = 'Ocurrió un error al aceptar la invitación. Intenta de nuevo.'
   }
-
-  await addDoc(collection(db, 'companyMembers'), {
-    companyId: invitation.companyId,
-    userId: auth.currentUser.uid,
-    email: auth.currentUser.email,
-    displayName: auth.currentUser.displayName,
-    role: 'member',
-    joinedAt: new Date().toISOString(),
-  })
-
-  if (invitation.memberId) {
-    const memberRef = doc(db, `companies/${invitation.companyId}/members`, invitation.memberId)
-    await updateDoc(memberRef, { status: 'active' })
-  }
-
-  await updateDoc(doc(db, 'invitations', token), { status: 'accepted' })
-
-  state.value = 'done'
 }
 </script>
 
 <template>
   <div class="flex min-h-dvh items-center justify-center bg-gradient-to-br from-emerald-500 to-emerald-800 px-4">
     <div class="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl">
+      <!-- Verifying -->
       <div v-if="state === 'verifying'" class="py-8">
         <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent"></div>
         <p class="text-gray-600">Verificando invitación...</p>
       </div>
 
+      <!-- Login required -->
       <div v-else-if="state === 'login'" class="py-4">
         <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
           <span class="text-3xl font-bold text-emerald-600">🔗</span>
         </div>
-        <h1 class="mb-2 text-xl font-bold text-gray-900">Invitación recibida</h1>
+        <h1 class="mb-1 text-xl font-bold text-gray-900">Invitación</h1>
+        <p v-if="invitation" class="mb-4 text-sm text-gray-500">
+          Fuiste invitado a <strong>{{ invitation.name || 'una empresa' }}</strong>
+        </p>
         <p class="mb-6 text-sm text-gray-500">Inicia sesión con Google para aceptar la invitación</p>
         <button
           @click="authStore.loginWithGoogle()"
@@ -99,11 +118,33 @@ async function acceptInvitation(invitation) {
         </button>
       </div>
 
+      <!-- Ready to accept -->
+      <div v-else-if="state === 'ready'" class="py-4">
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
+          <span class="text-3xl font-bold text-emerald-600">🔗</span>
+        </div>
+        <h1 class="mb-1 text-xl font-bold text-gray-900">Invitación</h1>
+        <p v-if="invitation" class="mb-4 text-sm text-gray-500">
+          Fuiste invitado a <strong>{{ invitation.name || 'la empresa' }}</strong>
+        </p>
+        <p class="mb-2 text-sm text-gray-500">
+          Has iniciado sesión como <strong>{{ authStore.user?.email }}</strong>
+        </p>
+        <button
+          @click="handleAccept"
+          class="w-full rounded-xl bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:scale-[0.97]"
+        >
+          Aceptar invitación
+        </button>
+      </div>
+
+      <!-- Accepting -->
       <div v-else-if="state === 'accepting'" class="py-8">
         <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent"></div>
         <p class="text-gray-600">Aceptando invitación...</p>
       </div>
 
+      <!-- Done -->
       <div v-else-if="state === 'done'" class="py-4">
         <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
           <span class="text-3xl">✅</span>
@@ -118,6 +159,7 @@ async function acceptInvitation(invitation) {
         </button>
       </div>
 
+      <!-- Error -->
       <div v-else class="py-4">
         <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100">
           <span class="text-3xl">❌</span>

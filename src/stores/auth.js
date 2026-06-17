@@ -112,6 +112,24 @@ export const useAuthStore = defineStore('auth', () => {
     return companyRef.id
   }
 
+  async function reloadCompany() {
+    try {
+      const memberSnap = await getDocs(
+        query(collection(db, 'companyMembers'), where('userId', '==', user.value?.uid))
+      )
+      if (!memberSnap.empty) {
+        const member = memberSnap.docs[0].data()
+        companyId.value = member.companyId
+        const companySnap = await getDoc(doc(db, 'companies', member.companyId))
+        if (companySnap.exists()) {
+          company.value = { id: companySnap.id, ...companySnap.data() }
+        }
+      }
+    } catch (e) {
+      error.value = e.message
+    }
+  }
+
   return {
     user,
     companyId,
@@ -124,5 +142,6 @@ export const useAuthStore = defineStore('auth', () => {
     loginWithGoogle,
     logout,
     createCompany,
+    reloadCompany,
   }
 })

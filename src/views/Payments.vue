@@ -7,6 +7,7 @@ import {
 import PageHeader from '../components/PageHeader.vue'
 import Modal from '../components/Modal.vue'
 import EmptyState from '../components/EmptyState.vue'
+import SearchSelect from '../components/SearchSelect.vue'
 
 const auth = useAuthStore()
 const payments = ref([])
@@ -124,11 +125,12 @@ function statusColor(status) {
 
     <div v-else class="space-y-3">
       <div class="mb-4">
-        <select v-model="selectedClientId"
-          class="block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
-          <option value="">Todos los clientes</option>
-          <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
-        </select>
+        <SearchSelect
+          v-model="selectedClientId"
+          :options="[{ id: '', label: 'Todos los clientes' }, ...clients.map(c => ({ id: c.id, label: c.name }))]"
+          placeholder="Buscar cliente..."
+          label="Filtrar por cliente"
+        />
       </div>
 
       <div

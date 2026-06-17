@@ -30,14 +30,14 @@ const deletingId = ref(null)
 const saving = ref(false)
 const loading = ref(true)
 
-const form = ref({ clientId: '', productId: '', quantity: 1 })
-const payForm = ref({ method: 'efectivo', amount: 0 })
+const form = ref({ clientId: '', productId: '', quantity: 1, unitPrice: 0 })
+const payForm = ref({ method: 'sinpe', amount: 0 })
 const searchQuery = ref('')
 
 const selectedProduct = computed(() => products.value.find(p => p.id === form.value.productId))
 const totalPrice = computed(() => {
-  if (selectedProduct.value && form.value.quantity) {
-    return selectedProduct.value.price * form.value.quantity
+  if (form.value.unitPrice && form.value.quantity) {
+    return form.value.unitPrice * form.value.quantity
   }
   return 0
 })
@@ -112,7 +112,7 @@ onUnmounted(() => {
 })
 
 function resetForm() {
-  form.value = { clientId: '', productId: '', quantity: 1 }
+  form.value = { clientId: '', productId: '', quantity: 1, unitPrice: 0 }
 }
 
 function openCreate() {
@@ -121,7 +121,7 @@ function openCreate() {
 }
 
 async function save() {
-  if (!form.value.clientId || !form.value.productId || !form.value.quantity) return
+  if (!form.value.clientId || !form.value.productId || !form.value.quantity || !form.value.unitPrice) return
   saving.value = true
   try {
     await createDocument(auth.companyId, 'orders', {
@@ -129,8 +129,8 @@ async function save() {
       clientId: form.value.clientId,
       productId: form.value.productId,
       quantity: Number(form.value.quantity),
-      unitPrice: selectedProduct.value.price,
-      total: selectedProduct.value.price * Number(form.value.quantity),
+      unitPrice: Number(form.value.unitPrice),
+      total: Number(form.value.unitPrice) * Number(form.value.quantity),
       payments: [],
     })
     showModal.value = false
@@ -143,7 +143,7 @@ async function save() {
 function openPay(order) {
   const owed = order.total - paidAmount(order)
   payingOrder.value = order
-  payForm.value = { method: 'efectivo', amount: owed }
+  payForm.value = { method: 'sinpe', amount: owed }
   showPayModal.value = true
 }
 
@@ -182,6 +182,12 @@ async function savePayment() {
 function confirmDelete(id) {
   deletingId.value = id
   showDelete.value = true
+}
+
+function autoFillPrice() {
+  if (!form.value.unitPrice && selectedProduct.value) {
+    form.value.unitPrice = selectedProduct.value.price
+  }
 }
 
 async function remove() {
@@ -326,16 +332,27 @@ function getProductName(id) {
           <input v-model.number="form.quantity" type="number" min="1" required
             class="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" />
         </div>
-        <div v-if="selectedProduct" class="rounded-xl bg-gray-50 p-3 text-sm">
-          <p>Precio unitario: <strong>{{ formatCurrency(selectedProduct.price) }}</strong></p>
-          <p>Total: <strong>{{ formatCurrency(totalPrice) }}</strong></p>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Precio unitario *</label>
+          <div class="relative mt-1">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+            <input v-model.number="form.unitPrice" type="number" step="0.01" min="0" required placeholder="0.00"
+              @focus="autoFillPrice"
+              class="block w-full rounded-xl border border-gray-300 px-4 py-3 pl-8 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" />
+          </div>
+          <p v-if="selectedProduct" class="mt-1 text-xs text-gray-400">
+            Precio base: {{ formatCurrency(selectedProduct.price) }}
+          </p>
+        </div>
+        <div v-if="totalPrice" class="rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+          Total: {{ formatCurrency(totalPrice) }}
         </div>
         <div class="flex gap-3 pt-2">
           <button type="button" @click="showModal = false"
             class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Cancelar
           </button>
-          <button type="submit" :disabled="saving || !form.clientId || !form.productId"
+          <button type="submit" :disabled="saving || !form.clientId || !form.productId || !form.unitPrice"
             class="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
             {{ saving ? 'Guardando...' : 'Agregar' }}
           </button>

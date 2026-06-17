@@ -15,43 +15,48 @@ const error = ref('')
 const invitation = ref(null)
 
 onMounted(async () => {
-  const snap = await getDoc(doc(db, 'invitations', token))
+  try {
+    const snap = await getDoc(doc(db, 'invitations', token))
 
-  if (!snap.exists()) {
+    if (!snap.exists()) {
+      state.value = 'error'
+      error.value = 'Este link de invitación no es válido.'
+      return
+    }
+
+    const inv = snap.data()
+
+    if (inv.status === 'accepted') {
+      state.value = 'error'
+      error.value = 'Esta invitación ya fue utilizada.'
+      return
+    }
+
+    if (inv.expiresAt?.toDate?.() < new Date()) {
+      state.value = 'error'
+      error.value = 'Esta invitación ha expirado.'
+      return
+    }
+
+    invitation.value = inv
+
+    if (!authStore.isAuthenticated) {
+      sessionStorage.setItem('pendingInvite', token)
+      state.value = 'login'
+      return
+    }
+
+    if (authStore.user.email !== inv.email) {
+      state.value = 'error'
+      error.value = `Esta invitación es para ${inv.email}. Inicia sesión con esa cuenta.`
+      return
+    }
+
+    state.value = 'ready'
+  } catch {
     state.value = 'error'
-    error.value = 'Este link de invitación no es válido.'
-    return
+    error.value = 'No se pudo verificar la invitación. Intenta de nuevo.'
   }
-
-  const inv = snap.data()
-
-  if (inv.status === 'accepted') {
-    state.value = 'error'
-    error.value = 'Esta invitación ya fue utilizada.'
-    return
-  }
-
-  if (inv.expiresAt?.toDate?.() < new Date()) {
-    state.value = 'error'
-    error.value = 'Esta invitación ha expirado.'
-    return
-  }
-
-  invitation.value = inv
-
-  if (!authStore.isAuthenticated) {
-    sessionStorage.setItem('pendingInvite', token)
-    state.value = 'login'
-    return
-  }
-
-  if (authStore.user.email !== inv.email) {
-    state.value = 'error'
-    error.value = `Esta invitación es para ${inv.email}. Inicia sesión con esa cuenta.`
-    return
-  }
-
-  state.value = 'ready'
 })
 
 async function handleAccept() {

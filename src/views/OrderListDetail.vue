@@ -6,7 +6,7 @@ import {
   subscribeToCollection, createDocument, updateDocument, deleteDocument, getDocRef,
   formatCurrency, getCollectionRef
 } from '../utils/helpers'
-import { doc, getDoc, deleteDoc } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, addDoc } from 'firebase/firestore'
 import { db } from '../firebase/index'
 import Modal from '../components/Modal.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -23,12 +23,15 @@ const orders = ref([])
 const clients = ref([])
 const products = ref([])
 const showModal = ref(false)
+const showPayModal = ref(false)
 const showDelete = ref(false)
+const payingOrder = ref(null)
 const deletingId = ref(null)
 const saving = ref(false)
 const loading = ref(true)
 
 const form = ref({ clientId: '', productId: '', quantity: 1 })
+const payForm = ref({ method: 'efectivo', amount: 0 })
 const searchQuery = ref('')
 
 const selectedProduct = computed(() => products.value.find(p => p.id === form.value.productId))
@@ -40,6 +43,30 @@ const totalPrice = computed(() => {
 })
 
 const grandTotal = computed(() => orders.value.reduce((s, o) => s + (o.total || 0), 0))
+const grandPaid = computed(() => orders.value.reduce((s, o) => s + paidAmount(o), 0))
+
+function paidAmount(order) {
+  return (order.payments || []).reduce((s, p) => s + (p.amount || 0), 0)
+}
+
+function orderStatus(order) {
+  const paid = paidAmount(order)
+  if (paid <= 0) return 'pendiente'
+  if (paid >= order.total) return 'pagado'
+  return 'parcial'
+}
+
+function statusLabel(status) {
+  return { pendiente: 'Pendiente', parcial: 'Parcial', pagado: 'Pagado' }[status]
+}
+
+function statusClass(status) {
+  return {
+    pendiente: 'bg-gray-100 text-gray-600',
+    parcial: 'bg-amber-100 text-amber-700',
+    pagado: 'bg-emerald-100 text-emerald-700',
+  }[status]
+}
 
 const filteredOrders = computed(() => {
   const q = searchQuery.value.toLowerCase().trim()
@@ -94,9 +121,49 @@ async function save() {
       quantity: Number(form.value.quantity),
       unitPrice: selectedProduct.value.price,
       total: selectedProduct.value.price * Number(form.value.quantity),
+      payments: [],
     })
     showModal.value = false
     resetForm()
+  } finally {
+    saving.value = false
+  }
+}
+
+function openPay(order) {
+  const owed = order.total - paidAmount(order)
+  payingOrder.value = order
+  payForm.value = { method: 'efectivo', amount: owed }
+  showPayModal.value = true
+}
+
+async function savePayment() {
+  if (!payForm.value.amount || payForm.value.amount <= 0 || !payingOrder.value) return
+  saving.value = true
+  try {
+    const paymentRecord = {
+      method: payForm.value.method,
+      amount: Number(payForm.value.amount),
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+    }
+
+    const currentPayments = payingOrder.value.payments || []
+    const ref = getDocRef(auth.companyId, 'orders', payingOrder.value.id)
+    await updateDoc(ref, { payments: [...currentPayments, paymentRecord] })
+
+    await addDoc(getCollectionRef(auth.companyId, 'payments'), {
+      clientId: payingOrder.value.clientId,
+      orderId: payingOrder.value.id,
+      amount: Number(payForm.value.amount),
+      method: payForm.value.method,
+      date: paymentRecord.date,
+      notes: `Pago desde pedido en lista ${orderList.value?.date || ''}`,
+      createdAt: new Date().toISOString(),
+    })
+
+    showPayModal.value = false
+    payingOrder.value = null
   } finally {
     saving.value = false
   }
@@ -148,6 +215,15 @@ function getProductName(id) {
       <div v-for="i in 3" :key="i" class="h-20 animate-pulse rounded-2xl bg-gray-200"></div>
     </div>
 
+    <EmptyState
+      v-else-if="!orders.length"
+      icon="📝"
+      title="No hay pedidos en esta lista"
+      description="Agrega pedidos con cliente y producto"
+      actionText="Agregar pedido"
+      @action="openCreate"
+    />
+
     <div v-else class="space-y-3">
       <div class="relative">
         <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,33 +237,58 @@ function getProductName(id) {
         />
       </div>
 
-      <p v-if="!filteredOrders.length && orders.length" class="text-center text-sm text-gray-400 py-8">
+      <p v-if="!filteredOrders.length" class="text-center text-sm text-gray-400 py-8">
         No se encontraron pedidos para "{{ searchQuery }}"
       </p>
 
       <template v-else>
         <div
           v-for="order in filteredOrders"
-        :key="order.id"
-        class="rounded-2xl border bg-white p-4 shadow-sm"
-      >
-        <div class="flex items-start justify-between">
-          <div class="min-w-0 flex-1">
-            <h3 class="font-semibold text-gray-900">{{ getClientName(order.clientId) }}</h3>
-            <p class="mt-1 text-sm text-gray-500">{{ getProductName(order.productId) }} × {{ order.quantity }}</p>
-            <p class="mt-1 text-sm font-medium text-emerald-600">Total: {{ formatCurrency(order.total) }}</p>
+          :key="order.id"
+          class="rounded-2xl border bg-white p-4 shadow-sm"
+        >
+          <div class="flex items-start justify-between">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-semibold text-gray-900">{{ getClientName(order.clientId) }}</h3>
+              <p class="mt-1 text-sm text-gray-500">{{ getProductName(order.productId) }} × {{ order.quantity }}</p>
+              <p class="mt-1 text-sm font-medium text-emerald-600">Total: {{ formatCurrency(order.total) }}</p>
+              <div class="mt-2 flex items-center gap-2">
+                <span class="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium" :class="statusClass(orderStatus(order))">
+                  {{ statusLabel(orderStatus(order)) }}
+                </span>
+                <span v-if="paidAmount(order) > 0" class="text-xs text-gray-500">
+                  Pagado: {{ formatCurrency(paidAmount(order)) }}
+                </span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button
+                v-if="orderStatus(order) !== 'pagado'"
+                @click="openPay(order)"
+                class="rounded-lg px-3 py-1.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50"
+              >
+                Pagar
+              </button>
+              <button @click="confirmDelete(order.id)" class="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600">
+                🗑️
+              </button>
+            </div>
           </div>
-          <button @click="confirmDelete(order.id)" class="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 ml-3">
-            🗑️
-          </button>
         </div>
-      </div>
       </template>
 
       <div class="rounded-2xl border bg-emerald-50 p-4">
         <div class="flex items-center justify-between">
           <span class="font-semibold text-gray-900">Total general</span>
           <span class="text-xl font-bold text-emerald-700">{{ formatCurrency(grandTotal) }}</span>
+        </div>
+        <div v-if="grandPaid > 0" class="mt-1 flex items-center justify-between text-sm text-emerald-600">
+          <span>Pagado</span>
+          <span class="font-medium">{{ formatCurrency(grandPaid) }}</span>
+        </div>
+        <div class="mt-1 flex items-center justify-between text-sm text-gray-500">
+          <span>Pendiente</span>
+          <span class="font-medium">{{ formatCurrency(grandTotal - grandPaid) }}</span>
         </div>
       </div>
     </div>
@@ -227,6 +328,43 @@ function getProductName(id) {
           <button type="submit" :disabled="saving || !form.clientId || !form.productId"
             class="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
             {{ saving ? 'Guardando...' : 'Agregar' }}
+          </button>
+        </div>
+      </form>
+    </Modal>
+
+    <Modal :open="showPayModal" title="Registrar pago" size="sm" @close="showPayModal = false">
+      <form @submit.prevent="savePayment" class="space-y-4">
+        <div v-if="payingOrder">
+          <p class="text-sm text-gray-500">{{ getClientName(payingOrder.clientId) }}</p>
+          <p class="text-lg font-bold text-gray-900">Total: {{ formatCurrency(payingOrder.total) }}</p>
+          <p v-if="paidAmount(payingOrder) > 0" class="text-sm text-gray-500">
+            Pagado: {{ formatCurrency(paidAmount(payingOrder)) }} |
+            Pendiente: {{ formatCurrency(payingOrder.total - paidAmount(payingOrder)) }}
+          </p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Método de pago</label>
+          <select v-model="payForm.method"
+            class="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
+            <option value="efectivo">Efectivo</option>
+            <option value="sinpe">Sinpe Móvil</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Monto</label>
+          <input v-model.number="payForm.amount" type="number" min="1" required
+            class="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" />
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" @click="showPayModal = false"
+            class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Cancelar
+          </button>
+          <button type="submit" :disabled="saving || !payForm.amount"
+            class="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+            {{ saving ? 'Guardando...' : 'Pagar' }}
           </button>
         </div>
       </form>

@@ -26,9 +26,6 @@ const saving = ref(false)
 const showAddClient = ref(false)
 const selectedClientId = ref('')
 
-const showClientModal = ref(false)
-const selectedClient = ref(null)
-
 const showPayModal = ref(false)
 const payForm = ref({ method: 'efectivo', amount: 0 })
 const payingClientId = ref(null)
@@ -105,11 +102,6 @@ function statusClass(status) {
 function openMaps(url) {
   if (!url) return
   window.open(url, '_blank')
-}
-
-function openClient(client) {
-  selectedClient.value = client
-  showClientModal.value = true
 }
 
 function openPay(clientId) {
@@ -219,30 +211,35 @@ async function removeClient(clientId) {
       <div
         v-for="client in groupClients"
         :key="client.id"
-        class="cursor-pointer rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md"
-        @click="openClient(client)"
+        class="rounded-2xl border bg-white p-4 shadow-sm"
       >
-        <div class="flex items-start justify-between">
-          <div class="min-w-0 flex-1">
-            <h3 class="font-semibold text-gray-900">{{ client.name }}</h3>
-            <p v-if="client.phone" class="mt-0.5 text-sm text-gray-500">{{ client.phone }}</p>
-            <div class="mt-2 flex items-center gap-2">
-              <span
-                class="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium"
-                :class="statusClass(clientStatus(client.id))"
-              >
-                {{ statusLabel(clientStatus(client.id)) }}
-              </span>
-              <span v-if="totalOwed(client.id) > 0" class="text-xs text-gray-500">
-                Total: {{ formatCurrency(totalOwed(client.id)) }}
-              </span>
-            </div>
-          </div>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-gray-900">{{ client.name }}</h3>
           <button
-            @click.stop="removeClient(client.id)"
+            @click="removeClient(client.id)"
             class="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
           >
             🗑️
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <button
+            v-if="client.mapsUrl"
+            @click="openMaps(client.mapsUrl)"
+            class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Maps
+          </button>
+          <button
+            v-if="clientStatus(client.id) !== 'pagado' && clientStatus(client.id) !== 'sin-pedidos'"
+            @click="openPay(client.id)"
+            class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Pagar
           </button>
         </div>
       </div>
@@ -267,39 +264,6 @@ async function removeClient(clientId) {
             Agregar
           </button>
         </div>
-      </div>
-    </Modal>
-
-    <!-- Client detail modal -->
-    <Modal
-      :open="showClientModal"
-      :title="selectedClient?.name || ''"
-      size="lg"
-      @close="showClientModal = false"
-    >
-      <div v-if="selectedClient" class="space-y-4">
-        <button
-          v-if="selectedClient.mapsUrl"
-          @click="openMaps(selectedClient.mapsUrl)"
-          class="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 hover:bg-blue-100"
-        >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Abrir en Google Maps
-        </button>
-        <p v-else class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-400 text-center">
-          Sin ubicación registrada
-        </p>
-
-        <button
-          v-if="clientStatus(selectedClient.id) !== 'pagado' && clientStatus(selectedClient.id) !== 'sin-pedidos'"
-          @click="openPay(selectedClient.id); showClientModal = false"
-          class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:scale-[0.97]"
-        >
-          Pagar
-        </button>
       </div>
     </Modal>
 

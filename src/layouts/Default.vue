@@ -14,6 +14,7 @@ const navigation = [
   { name: 'Productos', path: '/products', icon: '📦' },
   { name: 'Listas de Pedidos', path: '/order-lists', icon: '📋' },
   { name: 'Lotes', path: '/batches', icon: '🏭' },
+  { name: 'Grupos Entrega', path: '/delivery-groups', icon: '🚚' },
   { name: 'Pagos', path: '/payments', icon: '💳' },
   { name: 'Socios', path: '/members', icon: '🤝' },
   { name: 'Invitaciones', path: '/invitations', icon: '🔗' },

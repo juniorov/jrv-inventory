@@ -1,8 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
+import { doc, getDoc, collection, query, where, getDocs, addDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../firebase/index'
+
+function waitForAuthReady() {
+  return new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      unsub()
+      resolve(user)
+    })
+  })
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -14,60 +23,56 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!user.value)
   const hasCompany = computed(() => !!companyId.value)
 
-  async function handleRedirectResult() {
-    try {
-      await getRedirectResult(auth)
-    } catch (e) {
-      error.value = e.message
-    }
-  }
-
   async function init() {
-    await handleRedirectResult()
+    const firebaseUser = await waitForAuthReady()
+    error.value = null
 
-    return new Promise((resolve) => {
-      onAuthStateChanged(auth, async (firebaseUser) => {
-        error.value = null
-        if (firebaseUser) {
-          user.value = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
+    if (firebaseUser) {
+      user.value = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+      }
+
+      try {
+        const memberSnap = await getDocs(
+          query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
+        )
+
+        if (!memberSnap.empty) {
+          const member = memberSnap.docs[0].data()
+          companyId.value = member.companyId
+          const companySnap = await getDoc(doc(db, 'companies', member.companyId))
+          if (companySnap.exists()) {
+            company.value = { id: companySnap.id, ...companySnap.data() }
           }
-          companyId.value = null
-          company.value = null
-
-          try {
-            const memberSnap = await getDocs(
-              query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
-            )
-
-            if (!memberSnap.empty) {
-              const member = memberSnap.docs[0].data()
-              companyId.value = member.companyId
-              const companySnap = await getDoc(doc(db, 'companies', member.companyId))
-              if (companySnap.exists()) {
-                company.value = { id: companySnap.id, ...companySnap.data() }
-              }
-            }
-          } catch (e) {
-            error.value = e.message
-          }
-        } else {
-          user.value = null
-          companyId.value = null
-          company.value = null
         }
+      } catch (e) {
+        error.value = e.message
+      }
+    }
 
-        loading.value = false
-        resolve()
-      })
+    loading.value = false
+
+    onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        user.value = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+        }
+      } else {
+        user.value = null
+        companyId.value = null
+        company.value = null
+      }
     })
   }
 
   async function loginWithGoogle() {
-    await signInWithRedirect(auth, googleProvider)
+    await signInWithPopup(auth, googleProvider)
   }
 
   async function logout() {

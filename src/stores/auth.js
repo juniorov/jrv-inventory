@@ -55,13 +55,16 @@ export const useAuthStore = defineStore('auth', () => {
 
     loading.value = false
 
-    onAuthStateChanged(auth, (firebaseUser) => {
+    onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        user.value = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
+        if (!user.value) {
+          user.value = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+          }
+          await reloadCompany()
         }
       } else {
         user.value = null
@@ -72,7 +75,30 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function loginWithGoogle() {
-    await signInWithPopup(auth, googleProvider)
+    const result = await signInWithPopup(auth, googleProvider)
+
+    user.value = {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: result.user.displayName,
+      photoURL: result.user.photoURL,
+    }
+
+    try {
+      const memberSnap = await getDocs(
+        query(collection(db, 'companyMembers'), where('userId', '==', result.user.uid))
+      )
+      if (!memberSnap.empty) {
+        const member = memberSnap.docs[0].data()
+        companyId.value = member.companyId
+        const companySnap = await getDoc(doc(db, 'companies', member.companyId))
+        if (companySnap.exists()) {
+          company.value = { id: companySnap.id, ...companySnap.data() }
+        }
+      }
+    } catch (e) {
+      error.value = e.message
+    }
   }
 
   async function logout() {

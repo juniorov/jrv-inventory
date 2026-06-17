@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { subscribeToCollection, createDocument, deleteDocument } from '../utils/helpers'
+import { doc, setDoc } from 'firebase/firestore'
+import { db } from '../firebase/index'
 import PageHeader from '../components/PageHeader.vue'
 import Modal from '../components/Modal.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -15,6 +17,8 @@ const deletingId = ref(null)
 const saving = ref(false)
 const loading = ref(true)
 const form = ref({ name: '', email: '' })
+const showLinkModal = ref(false)
+const lastLink = ref('')
 
 let unsubscribe
 
@@ -40,17 +44,34 @@ async function save() {
   if (!form.value.name.trim() || !form.value.email.trim()) return
   saving.value = true
   try {
-    await createDocument(auth.companyId, 'members', {
+    const memberRef = await createDocument(auth.companyId, 'members', {
       name: form.value.name.trim(),
       email: form.value.email.trim(),
       status: 'pending',
       createdAt: new Date().toISOString(),
     })
+
+    const token = crypto.randomUUID().slice(0, 12)
+    await setDoc(doc(db, 'invitations', token), {
+      companyId: auth.companyId,
+      memberId: memberRef.id,
+      email: form.value.email.trim(),
+      name: form.value.name.trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    })
+
+    lastLink.value = `${location.origin}/invite/${token}`
     showModal.value = false
     resetForm()
+    showLinkModal.value = true
   } finally {
     saving.value = false
   }
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(lastLink.value)
 }
 
 function confirmDelete(id) {
@@ -138,6 +159,24 @@ async function remove() {
           </button>
         </div>
       </form>
+    </Modal>
+
+    <Modal :open="showLinkModal" title="Invitación generada" size="sm" @close="showLinkModal = false">
+      <div class="space-y-4">
+        <p class="text-sm text-gray-600">Compartí este link con el socio para que se una a la empresa:</p>
+        <div class="flex items-center gap-2">
+          <input :value="lastLink" readonly
+            class="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600" />
+          <button @click="copyLink"
+            class="rounded-lg bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-200">
+            Copiar
+          </button>
+        </div>
+        <button @click="showLinkModal = false"
+          class="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700">
+          Cerrar
+        </button>
+      </div>
     </Modal>
 
     <DeleteConfirm

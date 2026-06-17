@@ -46,6 +46,17 @@ const totalPrice = computed(() => {
 const grandTotal = computed(() => orders.value.reduce((s, o) => s + (o.total || 0), 0))
 const grandPaid = computed(() => orders.value.reduce((s, o) => s + paidAmount(o), 0))
 
+const productsSummary = computed(() => {
+  const map = {}
+  orders.value.forEach(o => {
+    const name = getProductName(o.productId)
+    if (!map[name]) map[name] = { name, quantity: 0, total: 0 }
+    map[name].quantity += o.quantity || 0
+    map[name].total += o.total || 0
+  })
+  return Object.values(map).sort((a, b) => a.name.localeCompare(b.name))
+})
+
 function paidAmount(order) {
   return (order.payments || []).reduce((s, p) => s + (p.amount || 0), 0)
 }
@@ -261,6 +272,18 @@ function getProductName(id) {
     />
 
     <div v-else class="space-y-3">
+      <div class="rounded-2xl border bg-white p-4 shadow-sm">
+        <h3 class="mb-3 text-sm font-semibold text-gray-700">Resumen por producto</h3>
+        <div class="divide-y divide-gray-100 text-sm">
+          <div v-for="p in productsSummary" :key="p.name" class="flex items-center justify-between py-1.5">
+            <span class="text-gray-700">{{ p.name }}</span>
+            <div class="text-right">
+              <span class="font-medium text-gray-900">{{ p.quantity }} uds</span>
+              <span class="ml-3 text-gray-500">{{ formatCurrency(p.total) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="relative">
         <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

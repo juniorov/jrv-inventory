@@ -29,6 +29,7 @@ const saving = ref(false)
 const loading = ref(true)
 
 const form = ref({ clientId: '', productId: '', quantity: 1 })
+const searchQuery = ref('')
 
 const selectedProduct = computed(() => products.value.find(p => p.id === form.value.productId))
 const totalPrice = computed(() => {
@@ -39,6 +40,15 @@ const totalPrice = computed(() => {
 })
 
 const grandTotal = computed(() => orders.value.reduce((s, o) => s + (o.total || 0), 0))
+
+const filteredOrders = computed(() => {
+  const q = searchQuery.value.toLowerCase().trim()
+  if (!q) return orders.value
+  return orders.value.filter(o => {
+    const name = getClientName(o.clientId).toLowerCase()
+    return name.includes(q)
+  })
+})
 
 let unsubOrders, unsubClients, unsubProducts
 
@@ -138,18 +148,26 @@ function getProductName(id) {
       <div v-for="i in 3" :key="i" class="h-20 animate-pulse rounded-2xl bg-gray-200"></div>
     </div>
 
-    <EmptyState
-      v-else-if="!orders.length"
-      icon="📝"
-      title="No hay pedidos en esta lista"
-      description="Agrega pedidos con cliente y producto"
-      actionText="Agregar pedido"
-      @action="openCreate"
-    />
-
     <div v-else class="space-y-3">
-      <div
-        v-for="order in orders"
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Buscar por cliente..."
+          class="w-full rounded-xl border border-gray-300 py-3 pl-10 pr-4 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+        />
+      </div>
+
+      <p v-if="!filteredOrders.length && orders.length" class="text-center text-sm text-gray-400 py-8">
+        No se encontraron pedidos para "{{ searchQuery }}"
+      </p>
+
+      <template v-else>
+        <div
+          v-for="order in filteredOrders"
         :key="order.id"
         class="rounded-2xl border bg-white p-4 shadow-sm"
       >
@@ -164,6 +182,7 @@ function getProductName(id) {
           </button>
         </div>
       </div>
+      </template>
 
       <div class="rounded-2xl border bg-emerald-50 p-4">
         <div class="flex items-center justify-between">

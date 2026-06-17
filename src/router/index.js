@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { auth } from '../firebase/index'
 import { useAuthStore } from '../stores/auth'
 
 const routes = [
@@ -46,17 +45,16 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  const user = auth.currentUser
+  const authStore = useAuthStore()
+  const isAuthenticated = authStore.isAuthenticated
   const requiresAuth = to.matched.some((r) => r.meta.requiresAuth)
   const requiresCompany = to.matched.some((r) => r.meta.requiresCompany)
   const isGuest = to.matched.some((r) => r.meta.guest)
-
-  if (!user && requiresAuth) {
+  if (!isAuthenticated && requiresAuth) {
     next('/login')
-  } else if (user && isGuest) {
+  } else if (isAuthenticated && isGuest) {
     next('/')
-  } else if (user && requiresCompany) {
-    const authStore = useAuthStore()
+  } else if (isAuthenticated && requiresCompany) {
     if (!authStore.hasCompany) {
       next('/onboarding')
     } else {

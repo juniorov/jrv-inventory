@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { subscribeToCollection, createDocument, updateDocument, deleteDocument } from '../utils/helpers'
 import PageHeader from '../components/PageHeader.vue'
@@ -15,6 +15,7 @@ const showDelete = ref(false)
 const deletingId = ref(null)
 const saving = ref(false)
 const loading = ref(true)
+const searchQuery = ref('')
 
 const form = ref({ name: '', phone: '', googleMapsUrl: '' })
 
@@ -28,6 +29,21 @@ onMounted(() => {
 })
 
 onUnmounted(() => unsubscribe?.())
+
+function normalizeText(value = '') {
+  return value
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+const filteredClients = computed(() => {
+  const query = normalizeText(searchQuery.value)
+  if (!query) return clients.value
+  return clients.value.filter((client) => normalizeText(client.name).includes(query))
+})
 
 function resetForm() {
   form.value = { name: '', phone: '', googleMapsUrl: '' }
@@ -84,6 +100,15 @@ async function remove() {
       @action="openCreate"
     />
 
+    <div v-if="!loading && clients.length" class="mb-4">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Buscar cliente por nombre..."
+        class="block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm placeholder-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+      />
+    </div>
+
     <div v-if="loading" class="space-y-3">
       <div v-for="i in 3" :key="i" class="h-20 animate-pulse rounded-2xl bg-gray-200"></div>
     </div>
@@ -99,7 +124,13 @@ async function remove() {
 
     <div v-else class="space-y-3">
       <div
-        v-for="client in clients"
+        v-if="!filteredClients.length"
+        class="rounded-2xl border border-dashed bg-white p-6 text-center text-sm text-gray-500"
+      >
+        No se encontraron clientes con ese nombre.
+      </div>
+      <div
+        v-for="client in filteredClients"
         :key="client.id"
         class="flex items-center justify-between rounded-2xl border bg-white p-4 shadow-sm"
       >

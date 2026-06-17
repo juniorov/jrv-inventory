@@ -22,20 +22,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function init() {
-    handleRedirectResult()
+  async function init() {
+    await handleRedirectResult()
 
     return new Promise((resolve) => {
       onAuthStateChanged(auth, async (firebaseUser) => {
-        try {
-          if (firebaseUser) {
-            user.value = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-            }
+        error.value = null
+        if (firebaseUser) {
+          user.value = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+          }
+          companyId.value = null
+          company.value = null
 
+          try {
             const memberSnap = await getDocs(
               query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
             )
@@ -48,17 +51,15 @@ export const useAuthStore = defineStore('auth', () => {
                 company.value = { id: companySnap.id, ...companySnap.data() }
               }
             }
-          } else {
-            user.value = null
-            companyId.value = null
-            company.value = null
+          } catch (e) {
+            error.value = e.message
           }
-        } catch (e) {
-          error.value = e.message
+        } else {
           user.value = null
           companyId.value = null
           company.value = null
         }
+
         loading.value = false
         resolve()
       })

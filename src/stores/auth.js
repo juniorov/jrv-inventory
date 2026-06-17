@@ -1,8 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth'
+import {
+  waitForAuthReady,
+  subscribeToAuthChanges,
+  loginWithGoogle as authLoginWithGoogle,
+  logout as authLogout,
+} from '../services/auth.service'
 import { doc, getDoc, collection, query, where, getDocs, addDoc, setDoc } from 'firebase/firestore'
-import { auth, db, googleProvider } from '../firebase/index'
+import { db } from '../firebase/index'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -14,50 +19,73 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!user.value)
   const hasCompany = computed(() => !!companyId.value)
 
-  function init() {
-    return new Promise((resolve) => {
-      const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-        unsub()
-        error.value = null
-
-        if (firebaseUser) {
-          user.value = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-          }
-
-          try {
-            const memberSnap = await getDocs(
-              query(collection(db, 'companyMembers'), where('userId', '==', firebaseUser.uid))
-            )
-
-            if (!memberSnap.empty) {
-              const member = memberSnap.docs[0].data()
-              companyId.value = member.companyId
-              const companySnap = await getDoc(doc(db, 'companies', member.companyId))
-              if (companySnap.exists()) {
-                company.value = { id: companySnap.id, ...companySnap.data() }
-              }
-            }
-          } catch (e) {
-            error.value = e.message
-          }
+  async function loadCompany(uid) {
+    try {
+      const memberSnap = await getDocs(
+        query(collection(db, 'companyMembers'), where('userId', '==', uid))
+      )
+      if (!memberSnap.empty) {
+        const member = memberSnap.docs[0].data()
+        companyId.value = member.companyId
+        const companySnap = await getDoc(doc(db, 'companies', member.companyId))
+        if (companySnap.exists()) {
+          company.value = { id: companySnap.id, ...companySnap.data() }
         }
+      }
+    } catch (e) {
+      error.value = e.message
+    }
+  }
 
-        loading.value = false
-        resolve()
-      })
+  async function init() {
+    const firebaseUser = await waitForAuthReady()
+    error.value = null
+
+    if (firebaseUser) {
+      user.value = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+      }
+      await loadCompany(firebaseUser.uid)
+    }
+
+    loading.value = false
+
+    subscribeToAuthChanges(async (firebaseUser) => {
+      if (firebaseUser) {
+        user.value = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+        }
+        if (!companyId.value) {
+          await loadCompany(firebaseUser.uid)
+        }
+      } else {
+        user.value = null
+        companyId.value = null
+        company.value = null
+      }
     })
   }
 
   async function loginWithGoogle() {
-    await signInWithRedirect(auth, googleProvider)
+    error.value = null
+    const u = await authLoginWithGoogle()
+    user.value = {
+      uid: u.uid,
+      email: u.email,
+      displayName: u.displayName,
+      photoURL: u.photoURL,
+    }
+    await loadCompany(u.uid)
   }
 
   async function logout() {
-    await signOut(auth)
+    await authLogout()
     user.value = null
     companyId.value = null
     company.value = null
@@ -95,21 +123,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function reloadCompany() {
-    try {
-      const memberSnap = await getDocs(
-        query(collection(db, 'companyMembers'), where('userId', '==', user.value?.uid))
-      )
-      if (!memberSnap.empty) {
-        const member = memberSnap.docs[0].data()
-        companyId.value = member.companyId
-        const companySnap = await getDoc(doc(db, 'companies', member.companyId))
-        if (companySnap.exists()) {
-          company.value = { id: companySnap.id, ...companySnap.data() }
-        }
-      }
-    } catch (e) {
-      error.value = e.message
-    }
+    await loadCompany(user.value?.uid)
   }
 
   return {

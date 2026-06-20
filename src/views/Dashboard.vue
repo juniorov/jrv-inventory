@@ -13,6 +13,10 @@ import {
   Legend,
 } from 'chart.js'
 
+function fmtNoDec(amount) {
+  return new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(amount || 0)
+}
+
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const auth = useAuthStore()
@@ -154,16 +158,16 @@ onUnmounted(() => {
       </div>
       <div class="rounded-2xl border bg-white p-4 shadow-sm">
         <p class="text-xs font-medium uppercase tracking-wider text-gray-500">Ingresos</p>
-        <p class="mt-1 text-2xl font-bold text-emerald-600">{{ formatCurrency(stats.totalIncome) }}</p>
+        <p class="mt-1 text-2xl font-bold text-emerald-600">{{ fmtNoDec(stats.totalIncome) }}</p>
       </div>
       <div class="rounded-2xl border bg-white p-4 shadow-sm">
         <p class="text-xs font-medium uppercase tracking-wider text-gray-500">Gastos</p>
-        <p class="mt-1 text-2xl font-bold text-red-600">{{ formatCurrency(stats.totalExpenses) }}</p>
+        <p class="mt-1 text-2xl font-bold text-red-600">{{ fmtNoDec(stats.totalExpenses) }}</p>
       </div>
       <div class="rounded-2xl border bg-white p-4 shadow-sm">
         <p class="text-xs font-medium uppercase tracking-wider text-gray-500">Balance</p>
         <p :class="['mt-1 text-2xl font-bold', stats.balance >= 0 ? 'text-emerald-600' : 'text-red-600']">
-          {{ formatCurrency(stats.balance) }}
+          {{ fmtNoDec(stats.balance) }}
         </p>
       </div>
     </div>

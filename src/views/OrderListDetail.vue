@@ -260,26 +260,26 @@ async function shareAsImage() {
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
     const file = new File([blob], `pedidos-${orderList.value?.date || 'lista'}.png`, { type: 'image/png' })
 
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({
-        title: `Pedidos ${orderList.value?.date || ''}`,
-        files: [file],
-      })
-    } else {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = `https://wa.me/?text=${encodeURIComponent('Pedidos ' + (orderList.value?.date || ''))}`
-      a.target = '_blank'
-      a.download = file.name
-
-      const link = document.createElement('a')
-      link.href = url
-      link.download = file.name
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Pedidos ${orderList.value?.date || ''}`,
+          files: [file],
+        })
+        return
+      } catch {
+        // user cancelled or share failed — fall through to download
+      }
     }
+
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = file.name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   } finally {
     exporting.value = false
     showPreview.value = false

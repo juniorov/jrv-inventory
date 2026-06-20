@@ -26,9 +26,9 @@ let unsubBatches, unsubOrderLists, unsubOrders
 
 onMounted(() => {
   unsubBatches = subscribeToCollection(auth.companyId, 'batches', (items) => {
-    batches.value = items
+    batches.value = items.sort((a, b) => b.date.localeCompare(a.date))
     loading.value = false
-  })
+  }, 'date', 'desc')
   unsubOrderLists = subscribeToCollection(auth.companyId, 'orderLists', (items) => {
     orderLists.value = items
   })

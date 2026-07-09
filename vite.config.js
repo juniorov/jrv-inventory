@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'robots.txt'],
       manifest: {
-        name: 'JRV Inventory',
-        short_name: 'JRV Inventory',
+        name: 'Control Inventario',
+        short_name: 'Control Inventario',
         description: 'Control de inventario para pedidos de comidas familiares',
         theme_color: '#059669',
         background_color: '#ffffff',

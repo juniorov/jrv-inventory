@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -11,6 +11,7 @@ import { db } from '../firebase/index'
 import Modal from '../components/Modal.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import EmptyState from '../components/EmptyState.vue'
+import { VueDraggable } from 'vue-draggable-plus'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -30,6 +31,18 @@ const showPayModal = ref(false)
 const payForm = ref({ method: 'efectivo', amount: 0 })
 const payingClientId = ref(null)
 
+// Ordered client objects — vue-draggable-plus mutates this directly
+const sortedClients = ref([])
+
+function rebuildSortedClients() {
+  const ids = group.value?.clientIds || []
+  sortedClients.value = ids
+    .map(id => clients.value.find(c => c.id === id))
+    .filter(Boolean)
+}
+
+watch([() => group.value?.clientIds, clients], rebuildSortedClients, { deep: true })
+
 let unsubClients, unsubOrders
 
 onMounted(async () => {
@@ -42,7 +55,8 @@ onMounted(async () => {
   }
 
   unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => {
-    clients.value = items.sort((a, b) => a.name.localeCompare(b.name))
+    clients.value = items
+    rebuildSortedClients()
   })
   unsubOrders = subscribeToCollection(auth.companyId, 'orders', (items) => {
     orders.value = items
@@ -53,11 +67,6 @@ onMounted(async () => {
 onUnmounted(() => {
   unsubClients?.()
   unsubOrders?.()
-})
-
-const groupClients = computed(() => {
-  const ids = group.value?.clientIds || []
-  return clients.value.filter(c => ids.includes(c.id))
 })
 
 function getClientOrders(clientId) {
@@ -175,6 +184,13 @@ async function removeClient(clientId) {
   await updateDoc(ref, { clientIds: ids })
   group.value.clientIds = ids
 }
+
+async function saveClientsOrder() {
+  const ids = sortedClients.value.map(c => c.id)
+  const ref = doc(db, `companies/${auth.companyId}/deliveryGroups`, groupId)
+  await updateDoc(ref, { clientIds: ids })
+  group.value.clientIds = ids
+}
 </script>
 
 <template>
@@ -199,7 +215,7 @@ async function removeClient(clientId) {
     </div>
 
     <EmptyState
-      v-else-if="!groupClients.length"
+      v-else-if="!sortedClients.length"
       icon="🚚"
       title="No hay clientes en este grupo"
       description="Agrega clientes a la ruta de entrega"
@@ -207,20 +223,38 @@ async function removeClient(clientId) {
       @action="showAddClient = true"
     />
 
-    <div v-else class="space-y-3">
+    <VueDraggable
+      v-else
+      v-model="sortedClients"
+      handle=".drag-handle"
+      :animation="150"
+      class="space-y-3"
+      @end="saveClientsOrder"
+    >
       <div
-        v-for="client in groupClients"
+        v-for="client in sortedClients"
         :key="client.id"
         class="rounded-2xl border bg-white p-4 shadow-sm"
       >
         <div class="flex items-center justify-between mb-3">
-          <h3 class="font-semibold text-gray-900">{{ client.name }}</h3>
-          <button
-            @click="removeClient(client.id)"
-            class="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
-          >
-            🗑️
-          </button>
+          <div class="flex items-center gap-2 min-w-0">
+            <span
+              class="drag-handle cursor-grab touch-none select-none text-gray-300 active:cursor-grabbing text-lg leading-none"
+              title="Arrastrar para reordenar"
+            >⠿</span>
+            <h3 class="font-semibold text-gray-900">{{ client.name }}</h3>
+          </div>
+          <div class="flex items-center gap-1">
+            <span :class="['rounded-full px-2.5 py-0.5 text-xs font-medium', statusClass(clientStatus(client.id))]">
+              {{ statusLabel(clientStatus(client.id)) }}
+            </span>
+            <button
+              @click="removeClient(client.id)"
+              class="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            >
+              🗑️
+            </button>
+          </div>
         </div>
         <div class="flex gap-2">
           <button
@@ -234,6 +268,19 @@ async function removeClient(clientId) {
             </svg>
             Maps
           </button>
+          <a
+            v-if="client.phone"
+            :href="`https://wa.me/506${client.phone.replace(/\D/g, '')}`"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700 hover:bg-green-100"
+          >
+            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+              <path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.557 4.118 1.529 5.845L.057 23.428a.75.75 0 0 0 .937.937l5.638-1.476A11.953 11.953 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.891 0-3.667-.523-5.184-1.433l-.372-.22-3.853 1.009 1.028-3.758-.241-.389A9.96 9.96 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+            </svg>
+            WhatsApp
+          </a>
           <button
             v-if="clientStatus(client.id) !== 'pagado' && clientStatus(client.id) !== 'sin-pedidos'"
             @click="openPay(client.id)"
@@ -243,7 +290,7 @@ async function removeClient(clientId) {
           </button>
         </div>
       </div>
-    </div>
+    </VueDraggable>
 
     <!-- Add client modal -->
     <Modal :open="showAddClient" title="Agregar cliente al grupo" @close="showAddClient = false">

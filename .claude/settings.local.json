@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(/usr/local/bin/npm install:*)",
+      "Read(//usr/local/bin/**)",
+      "Read(//Users/juniorov/.nvm/versions/node/**)",
+      "Bash(~/.nvm/versions/node/v22.15.0/bin/npm install:*)",
+      "Bash(~/.nvm/versions/node/v22.15.0/bin/node --version)",
+      "Bash(~/.nvm/versions/node/v22.15.0/bin/npm --version)",
+      "Bash(~/.nvm/versions/node/v22.15.0/bin/node ~/.nvm/versions/node/v22.15.0/lib/node_modules/npm/bin/npm-cli.js install vue-draggable-plus)",
+      "Bash(~/.nvm/versions/node/v22.15.0/bin/node ~/.nvm/versions/node/v22.15.0/lib/node_modules/npm/bin/npm-cli.js run build)",
+      "Bash(~/.nvm/versions/node/v22.15.0/bin/node node_modules/.bin/vite build)",
+      "Bash(~/.nvm/versions/node/v22.15.0/bin/node:*)"
+    ]
+  }
+}

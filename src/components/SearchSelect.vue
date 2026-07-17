@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 
 const props = defineProps({
   options: { type: Array, default: () => [] },
@@ -15,6 +15,8 @@ const open = ref(false)
 const query = ref('')
 const highlightIndex = ref(-1)
 const inputRef = ref(null)
+const containerRef = ref(null)
+const dropUp = ref(false)
 
 const selectedLabel = computed(() => {
   if (!props.modelValue) return ''
@@ -48,6 +50,12 @@ function clear() {
 function onInputFocus() {
   open.value = true
   highlightIndex.value = -1
+  nextTick(() => {
+    if (containerRef.value) {
+      const rect = containerRef.value.getBoundingClientRect()
+      dropUp.value = window.innerHeight - rect.bottom < 220
+    }
+  })
 }
 
 function onInputBlur() {
@@ -72,7 +80,7 @@ function onKeydown(e) {
 </script>
 
 <template>
-  <div class="relative">
+  <div ref="containerRef" class="relative">
     <label v-if="label" class="mb-1 block text-sm font-medium text-gray-700">{{ label }}</label>
 
     <div class="relative">
@@ -105,7 +113,10 @@ function onKeydown(e) {
 
     <ul
       v-if="open"
-      class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg"
+      :class="[
+        'absolute z-50 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg',
+        dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+      ]"
     >
       <li
         v-if="!filtered.length"

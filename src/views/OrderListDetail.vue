@@ -545,14 +545,14 @@ async function shareAsImage() {
     />
 
     <!-- Hidden export template -->
-    <div v-show="showPreview" class="fixed left-0 top-0 z-[-1] w-[400px] bg-white p-6" style="font-family: system-ui, -apple-system, sans-serif;">
+    <div v-show="showPreview" class="fixed left-0 top-0 z-[-1] w-[400px] p-6" style="font-family: system-ui, -apple-system, sans-serif; background: #ffffff; color: #111827;">
       <div ref="exportRef" class="w-full">
-        <div class="mb-4 border-b border-gray-200 pb-4">
+        <div style="margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 16px;">
           <h1 style="font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 4px 0;">Pedidos {{ orderList?.date || '' }}</h1>
           <p v-if="orderList?.notes" style="font-size: 13px; color: #6b7280; margin: 0;">{{ orderList.notes }}</p>
         </div>
 
-        <div class="mb-4">
+        <div style="margin-bottom: 16px;">
           <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Resumen por producto</h2>
           <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
             <tr v-for="p in productsSummary" :key="p.name" style="border-bottom: 1px solid #f3f4f6;">
@@ -563,7 +563,7 @@ async function shareAsImage() {
           </table>
         </div>
 
-        <div class="mb-4">
+        <div style="margin-bottom: 16px;">
           <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Detalle por producto</h2>
           <div v-for="p in productsWithClients" :key="p.name" style="margin-bottom: 10px;">
             <div style="font-size: 13px; font-weight: 700; color: #111827; background: #f3f4f6; padding: 4px 8px; border-radius: 6px;">

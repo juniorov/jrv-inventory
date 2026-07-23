@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -12,7 +12,6 @@ import Modal from '../components/Modal.vue'
 import EmptyState from '../components/EmptyState.vue'
 import DeleteConfirm from '../components/DeleteConfirm.vue'
 import SearchSelect from '../components/SearchSelect.vue'
-import html2canvas from 'html2canvas-pro'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -35,9 +34,7 @@ const loading = ref(true)
 const form = ref({ clientId: '', productId: '', quantity: 1, unitPrice: 0 })
 const payForm = ref({ method: 'efectivo', amount: 0 })
 const searchQuery = ref('')
-const exportRef = ref(null)
-const exporting = ref(false)
-const showPreview = ref(false)
+const copied = ref(false)
 
 const selectedProduct = computed(() => products.value.find(p => p.id === form.value.productId))
 const totalPrice = computed(() => {
@@ -264,54 +261,49 @@ function getProductName(id) {
   return products.value.find(p => p.id === id)?.name || 'Eliminado'
 }
 
-async function shareAsImage() {
-  showPreview.value = true
-  exporting.value = true
-  await nextTick()
-  // wait for the browser to actually paint the now-visible preview before capturing it
-  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-  if (!exportRef.value) {
-    exporting.value = false
-    showPreview.value = false
-    return
-  }
-  try {
-    const canvas = await html2canvas(exportRef.value, {
-      backgroundColor: '#ffffff',
-      scale: 2,
-      useCORS: true,
+function buildShareText() {
+  const lines = []
+  lines.push(`Pedidos ${orderList.value?.date || ''}`.trim())
+  if (orderList.value?.notes) lines.push(orderList.value.notes)
+  lines.push('')
+
+  productsWithClients.value.forEach(p => {
+    lines.push(`*${p.name}* (${p.quantity} uds)`)
+    p.clients.forEach(c => {
+      lines.push(`- ${c.name}: ${c.quantity} uds`)
     })
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
-    if (!blob) throw new Error('No se pudo generar la imagen')
-    const file = new File([blob], `pedidos-${orderList.value?.date || 'lista'}.png`, { type: 'image/png' })
+    lines.push('')
+  })
 
-    if (navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: `Pedidos ${orderList.value?.date || ''}`,
-          files: [file],
-        })
-        return
-      } catch (err) {
-        if (err?.name === 'AbortError') return // user cancelled the share sheet
-        // share failed for another reason — fall through to download
-      }
+  lines.push(`Total: ${formatCurrency(grandTotal.value)}`)
+  if (grandPaid.value > 0) {
+    lines.push(`Pagado: ${formatCurrency(grandPaid.value)}`)
+    lines.push(`Pendiente: ${formatCurrency(grandTotal.value - grandPaid.value)}`)
+  }
+
+  return lines.join('\n')
+}
+
+async function copyShareText() {
+  const text = buildShareText()
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
     }
-
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = file.name
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 2000)
   } catch (err) {
-    console.error('Error al generar la imagen para compartir:', err)
-    alert('No se pudo generar la imagen para compartir. Intenta de nuevo.')
-  } finally {
-    exporting.value = false
-    showPreview.value = false
+    console.error('Error al copiar el resumen de pedidos:', err)
+    alert('No se pudo copiar el resumen. Intenta de nuevo.')
   }
 }
 </script>
@@ -331,14 +323,16 @@ async function shareAsImage() {
         </div>
         <div class="flex items-center gap-2 self-start">
           <button
-            @click="shareAsImage"
-            :disabled="exporting"
-            class="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.97] disabled:opacity-50"
+            @click="copyShareText"
+            class="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.97]"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            <svg v-if="!copied" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            {{ exporting ? 'Generando...' : 'Compartir' }}
+            <svg v-else class="h-4 w-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            {{ copied ? '¡Copiado!' : 'Compartir' }}
           </button>
           <button
             @click="openCreate"
@@ -543,57 +537,5 @@ async function shareAsImage() {
       @close="showDelete = false"
       @confirm="remove"
     />
-
-    <!-- Hidden export template -->
-    <div v-show="showPreview" class="fixed left-0 top-0 z-[-1] w-[400px] p-6" style="font-family: system-ui, -apple-system, sans-serif; background: #ffffff; color: #111827;">
-      <div ref="exportRef" class="w-full">
-        <div style="margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 16px;">
-          <h1 style="font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 4px 0;">Pedidos {{ orderList?.date || '' }}</h1>
-          <p v-if="orderList?.notes" style="font-size: 13px; color: #6b7280; margin: 0;">{{ orderList.notes }}</p>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Resumen por producto</h2>
-          <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
-            <tr v-for="p in productsSummary" :key="p.name" style="border-bottom: 1px solid #f3f4f6;">
-              <td style="padding: 6px 0; color: #374151;">{{ p.name }}</td>
-              <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #111827;">{{ p.quantity }} uds</td>
-              <td style="padding: 6px 0; text-align: right; color: #6b7280;">{{ formatCurrency(p.total) }}</td>
-            </tr>
-          </table>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Detalle por producto</h2>
-          <div v-for="p in productsWithClients" :key="p.name" style="margin-bottom: 10px;">
-            <div style="font-size: 13px; font-weight: 700; color: #111827; background: #f3f4f6; padding: 4px 8px; border-radius: 6px;">
-              {{ p.name }} — {{ p.quantity }} uds
-            </div>
-            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
-              <tr v-for="(c, idx) in p.clients" :key="idx" style="border-bottom: 1px solid #f3f4f6;">
-                <td style="padding: 5px 8px; color: #374151;">{{ c.name }}</td>
-                <td style="padding: 5px 8px; text-align: right; font-weight: 500; color: #111827;">{{ c.quantity }} uds</td>
-                <td style="padding: 5px 8px; text-align: right; color: #6b7280;">{{ formatCurrency(c.total) }}</td>
-              </tr>
-            </table>
-          </div>
-        </div>
-
-        <div style="background: #f0fdf4; border-radius: 12px; padding: 12px 16px; border: 1px solid #bbf7d0;">
-          <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; color: #111827;">
-            <span>Total general</span>
-            <span style="color: #059669;">{{ formatCurrency(grandTotal) }}</span>
-          </div>
-          <div v-if="grandPaid > 0" style="display: flex; justify-content: space-between; font-size: 13px; color: #059669; margin-top: 4px;">
-            <span>Pagado</span>
-            <span style="font-weight: 500;">{{ formatCurrency(grandPaid) }}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 13px; color: #6b7280; margin-top: 4px;">
-            <span>Pendiente</span>
-            <span style="font-weight: 500;">{{ formatCurrency(grandTotal - grandPaid) }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>

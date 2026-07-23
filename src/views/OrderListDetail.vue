@@ -12,7 +12,7 @@ import Modal from '../components/Modal.vue'
 import EmptyState from '../components/EmptyState.vue'
 import DeleteConfirm from '../components/DeleteConfirm.vue'
 import SearchSelect from '../components/SearchSelect.vue'
-import html2canvas from 'html2canvas'
+import html2canvas from 'html2canvas-pro'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -280,11 +280,6 @@ async function shareAsImage() {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
-      // Tailwind 4's color variables are defined in oklch(), which html2canvas's
-      // own color parser can't handle wherever it appears on the page — even
-      // outside the captured element. foreignObjectRendering delegates painting
-      // to the browser's native SVG renderer instead, sidestepping that parser.
-      foreignObjectRendering: true,
     })
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
     if (!blob) throw new Error('No se pudo generar la imagen')

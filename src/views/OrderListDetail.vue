@@ -68,6 +68,24 @@ const productsSummary = computed(() => {
   return Object.values(map).sort((a, b) => a.name.localeCompare(b.name))
 })
 
+const productsWithClients = computed(() => {
+  const map = {}
+  orders.value.forEach(o => {
+    const name = getProductName(o.productId)
+    if (!map[name]) map[name] = { name, quantity: 0, total: 0, clients: [] }
+    map[name].quantity += o.quantity || 0
+    map[name].total += o.total || 0
+    map[name].clients.push({
+      name: getClientName(o.clientId),
+      quantity: o.quantity || 0,
+      total: o.total || 0,
+    })
+  })
+  return Object.values(map)
+    .map(p => ({ ...p, clients: p.clients.sort((a, b) => a.name.localeCompare(b.name)) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
+
 function paidAmount(order) {
   return (order.payments || []).reduce((s, p) => s + (p.amount || 0), 0)
 }
@@ -248,9 +266,15 @@ function getProductName(id) {
 
 async function shareAsImage() {
   showPreview.value = true
-  await nextTick()
-  if (!exportRef.value) return
   exporting.value = true
+  await nextTick()
+  // wait for the browser to actually paint the now-visible preview before capturing it
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  if (!exportRef.value) {
+    exporting.value = false
+    showPreview.value = false
+    return
+  }
   try {
     const canvas = await html2canvas(exportRef.value, {
       backgroundColor: '#ffffff',
@@ -258,17 +282,19 @@ async function shareAsImage() {
       useCORS: true,
     })
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+    if (!blob) throw new Error('No se pudo generar la imagen')
     const file = new File([blob], `pedidos-${orderList.value?.date || 'lista'}.png`, { type: 'image/png' })
 
-    if (navigator.share) {
+    if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({
           title: `Pedidos ${orderList.value?.date || ''}`,
           files: [file],
         })
         return
-      } catch {
-        // user cancelled or share failed — fall through to download
+      } catch (err) {
+        if (err?.name === 'AbortError') return // user cancelled the share sheet
+        // share failed for another reason — fall through to download
       }
     }
 
@@ -280,6 +306,9 @@ async function shareAsImage() {
     link.click()
     document.body.removeChild(link)
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (err) {
+    console.error('Error al generar la imagen para compartir:', err)
+    alert('No se pudo generar la imagen para compartir. Intenta de nuevo.')
   } finally {
     exporting.value = false
     showPreview.value = false
@@ -535,14 +564,19 @@ async function shareAsImage() {
         </div>
 
         <div class="mb-4">
-          <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Pedidos</h2>
-          <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
-            <tr v-for="order in filteredOrders" :key="order.id" style="border-bottom: 1px solid #f3f4f6;">
-              <td style="padding: 6px 0; color: #111827; font-weight: 500;">{{ getClientName(order.clientId) }}</td>
-              <td style="padding: 6px 0; color: #6b7280;">{{ getProductName(order.productId) }} × {{ order.quantity }}</td>
-              <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 500;">{{ formatCurrency(order.total) }}</td>
-            </tr>
-          </table>
+          <h2 style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 8px 0;">Detalle por producto</h2>
+          <div v-for="p in productsWithClients" :key="p.name" style="margin-bottom: 10px;">
+            <div style="font-size: 13px; font-weight: 700; color: #111827; background: #f3f4f6; padding: 4px 8px; border-radius: 6px;">
+              {{ p.name }} — {{ p.quantity }} uds
+            </div>
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr v-for="(c, idx) in p.clients" :key="idx" style="border-bottom: 1px solid #f3f4f6;">
+                <td style="padding: 5px 8px; color: #374151;">{{ c.name }}</td>
+                <td style="padding: 5px 8px; text-align: right; font-weight: 500; color: #111827;">{{ c.quantity }} uds</td>
+                <td style="padding: 5px 8px; text-align: right; color: #6b7280;">{{ formatCurrency(c.total) }}</td>
+              </tr>
+            </table>
+          </div>
         </div>
 
         <div style="background: #f0fdf4; border-radius: 12px; padding: 12px 16px; border: 1px solid #bbf7d0;">

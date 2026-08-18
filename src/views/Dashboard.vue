@@ -21,11 +21,19 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const auth = useAuthStore()
 
-const clients = ref(0)
+const clientsList = ref([])
 const products = ref(0)
 const orders = ref([])
 const batches = ref([])
 const orderLists = ref([])
+
+const clients = computed(() => clientsList.value.length)
+
+const clientMap = computed(() => {
+  const map = {}
+  clientsList.value.forEach(c => { map[c.id] = c.name })
+  return map
+})
 
 const batchOrderListIds = computed(() =>
   new Set(batches.value.filter(b => b.orderListId).map(b => b.orderListId))
@@ -93,6 +101,23 @@ const chartData = computed(() => ({
   ],
 }))
 
+const topClients = computed(() => {
+  const map = {}
+  orders.value.forEach(o => {
+    if (!o.clientId) return
+    if (!map[o.clientId]) map[o.clientId] = { id: o.clientId, quantity: 0, total: 0, orders: 0 }
+    map[o.clientId].quantity += o.quantity || 0
+    map[o.clientId].total += o.total || 0
+    map[o.clientId].orders += 1
+  })
+  return Object.values(map)
+    .map(c => ({ ...c, name: clientMap.value[c.id] || 'Sin nombre' }))
+    .sort((a, b) => b.quantity - a.quantity || b.total - a.total)
+    .slice(0, 5)
+})
+
+const maxQuantity = computed(() => topClients.value[0]?.quantity || 0)
+
 const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -120,7 +145,7 @@ const chartOptions = {
 let unsubClients, unsubProducts, unsubOrders, unsubBatches, unsubOrderLists
 
 onMounted(() => {
-  unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => { clients.value = items.length })
+  unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => { clientsList.value = items })
   unsubProducts = subscribeToCollection(auth.companyId, 'products', (items) => { products.value = items.length })
   unsubOrders = subscribeToCollection(auth.companyId, 'orders', (items) => { orders.value = items })
   unsubBatches = subscribeToCollection(auth.companyId, 'batches', (items) => { batches.value = items })
@@ -189,6 +214,38 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-if="topClients.length" class="mt-6 rounded-2xl border bg-white p-4 shadow-sm">
+      <h2 class="mb-4 text-sm font-semibold text-gray-700">Top clientes por productos comprados</h2>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b text-left text-xs uppercase tracking-wider text-gray-500">
+            <th class="pb-2 font-medium">#</th>
+            <th class="pb-2 font-medium">Cliente</th>
+            <th class="pb-2 text-right font-medium">Cantidad</th>
+            <th class="pb-2 text-right font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(c, i) in topClients" :key="c.id" class="border-b last:border-0">
+            <td class="py-2 text-gray-400">{{ i + 1 }}</td>
+            <td class="py-2">
+              <div class="flex items-center gap-2">
+                <span class="text-gray-900">{{ c.name }}</span>
+              </div>
+              <div class="mt-1 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-100">
+                <div
+                  class="h-full rounded-full bg-emerald-500"
+                  :style="{ width: `${(c.quantity / maxQuantity) * 100}%` }"
+                />
+              </div>
+            </td>
+            <td class="py-2 text-right font-medium text-gray-900">{{ c.quantity }}</td>
+            <td class="py-2 text-right text-gray-600">{{ formatCurrency(c.total) }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>

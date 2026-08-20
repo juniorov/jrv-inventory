@@ -83,6 +83,21 @@ const productsWithClients = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
+const clientsWithMultipleOrders = computed(() => {
+  const map = {}
+  orders.value.forEach(o => {
+    if (!map[o.clientId]) {
+      map[o.clientId] = { clientId: o.clientId, name: getClientName(o.clientId), count: 0, total: 0, paid: 0 }
+    }
+    map[o.clientId].count += 1
+    map[o.clientId].total += o.total || 0
+    map[o.clientId].paid += paidAmount(o)
+  })
+  return Object.values(map)
+    .filter(c => c.count > 1)
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
+
 function paidAmount(order) {
   return (order.payments || []).reduce((s, p) => s + (p.amount || 0), 0)
 }
@@ -424,6 +439,21 @@ async function copyShareText() {
           </div>
         </div>
       </template>
+
+      <div v-if="clientsWithMultipleOrders.length" class="rounded-2xl border bg-white p-4 shadow-sm">
+        <h3 class="mb-3 text-sm font-semibold text-gray-700">Clientes con varios pedidos</h3>
+        <div class="divide-y divide-gray-100 text-sm">
+          <div v-for="c in clientsWithMultipleOrders" :key="c.clientId" class="flex items-center justify-between py-1.5">
+            <span class="text-gray-700">{{ c.name }} <span class="text-xs text-gray-400">({{ c.count }} pedidos)</span></span>
+            <div class="text-right">
+              <span class="font-medium text-gray-900">{{ formatCurrency(c.total) }}</span>
+              <span v-if="c.paid < c.total" class="ml-3 text-xs text-amber-600">
+                Pendiente: {{ formatCurrency(c.total - c.paid) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="rounded-2xl border bg-emerald-50 p-4">
         <div class="flex items-center justify-between">

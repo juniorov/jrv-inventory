@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -72,6 +72,18 @@ onUnmounted(() => {
 function getClientOrders(clientId) {
   return orders.value.filter(o => o.clientId === clientId)
 }
+
+const clientOptions = computed(() => {
+  const already = group.value?.clientIds || []
+  let candidates = clients.value.filter(c => !already.includes(c.id))
+  if (group.value?.orderListId) {
+    const clientIdsInList = new Set(
+      orders.value.filter(o => o.orderListId === group.value.orderListId).map(o => o.clientId)
+    )
+    candidates = candidates.filter(c => clientIdsInList.has(c.id))
+  }
+  return candidates.map(c => ({ id: c.id, label: c.name }))
+})
 
 function paidAmount(clientId) {
   return getClientOrders(clientId).reduce((s, o) => s + ((o.payments || []).reduce((sp, p) => sp + (p.amount || 0), 0)), 0)
@@ -191,6 +203,31 @@ async function saveClientsOrder() {
   await updateDoc(ref, { clientIds: ids })
   group.value.clientIds = ids
 }
+
+function isDelivered(clientId) {
+  return (group.value?.deliveredClientIds || []).includes(clientId)
+}
+
+async function toggleDelivered(clientId) {
+  const delivered = new Set(group.value?.deliveredClientIds || [])
+  const ref = doc(db, `companies/${auth.companyId}/deliveryGroups`, groupId)
+  const payload = {}
+
+  if (delivered.has(clientId)) {
+    delivered.delete(clientId)
+    payload.deliveredClientIds = [...delivered]
+  } else {
+    delivered.add(clientId)
+    payload.deliveredClientIds = [...delivered]
+    // move to the end of the route order once marked as delivered
+    const ids = (group.value?.clientIds || []).filter(id => id !== clientId)
+    ids.push(clientId)
+    payload.clientIds = ids
+  }
+
+  await updateDoc(ref, payload)
+  Object.assign(group.value, payload)
+}
 </script>
 
 <template>
@@ -234,7 +271,7 @@ async function saveClientsOrder() {
       <div
         v-for="client in sortedClients"
         :key="client.id"
-        class="rounded-2xl border bg-white p-4 shadow-sm"
+        :class="['rounded-2xl border bg-white p-4 shadow-sm', isDelivered(client.id) ? 'opacity-60' : '']"
       >
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2 min-w-0">
@@ -242,7 +279,16 @@ async function saveClientsOrder() {
               class="drag-handle cursor-grab touch-none select-none text-gray-300 active:cursor-grabbing text-lg leading-none"
               title="Arrastrar para reordenar"
             >⠿</span>
-            <h3 class="font-semibold text-gray-900">{{ client.name }}</h3>
+            <button
+              type="button"
+              @click="toggleDelivered(client.id)"
+              :title="isDelivered(client.id) ? 'Marcar como no entregado' : 'Marcar como entregado'"
+              :class="[
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-sm transition',
+                isDelivered(client.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-300 text-transparent hover:border-emerald-400'
+              ]"
+            >✓</button>
+            <h3 :class="['font-semibold', isDelivered(client.id) ? 'text-gray-500 line-through' : 'text-gray-900']">{{ client.name }}</h3>
           </div>
           <div class="flex items-center gap-1">
             <span :class="['rounded-full px-2.5 py-0.5 text-xs font-medium', statusClass(clientStatus(client.id))]">
@@ -297,7 +343,7 @@ async function saveClientsOrder() {
       <div class="space-y-4">
         <SearchSelect
           v-model="selectedClientId"
-          :options="clients.filter(c => !group?.clientIds?.includes(c.id)).map(c => ({ id: c.id, label: c.name }))"
+          :options="clientOptions"
           placeholder="Buscar cliente..."
           label="Cliente"
         />

@@ -96,6 +96,10 @@ async function remove() {
   showDelete.value = false
   deletingId.value = null
 }
+
+async function toggleArchive(list) {
+  await updateDocument(auth.companyId, 'orderLists', list.id, { archived: !list.archived })
+}
 </script>
 
 <template>
@@ -126,11 +130,20 @@ async function remove() {
       <div
         v-for="list in lists"
         :key="list.id"
-        class="flex items-center justify-between rounded-2xl border bg-white p-4 shadow-sm"
+        :class="[
+          'flex items-center justify-between rounded-2xl border bg-white p-4 shadow-sm',
+          list.archived ? 'opacity-60' : ''
+        ]"
       >
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <h3 class="font-semibold text-gray-900">{{ list.date || 'Sin fecha' }}</h3>
+            <span
+              v-if="list.archived"
+              class="inline-block rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600"
+            >
+              Archivada
+            </span>
             <span
               v-if="listHasPending(list.id)"
               class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"
@@ -156,6 +169,13 @@ async function remove() {
           </button>
           <button @click="openEdit(list)" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
             ✏️
+          </button>
+          <button
+            @click="toggleArchive(list)"
+            :title="list.archived ? 'Desarchivar' : 'Archivar'"
+            class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            {{ list.archived ? '📤' : '📦' }}
           </button>
           <button @click="confirmDelete(list.id)" class="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600">
             🗑️

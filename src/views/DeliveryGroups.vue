@@ -1,11 +1,13 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { subscribeToCollection, createDocument, deleteDocument } from '../utils/helpers'
 import { writeBatch, doc } from 'firebase/firestore'
 import { db } from '../firebase/index'
 import PageHeader from '../components/PageHeader.vue'
+import Modal from '../components/Modal.vue'
+import SearchSelect from '../components/SearchSelect.vue'
 import EmptyState from '../components/EmptyState.vue'
 import DeleteConfirm from '../components/DeleteConfirm.vue'
 import { VueDraggable } from 'vue-draggable-plus'
@@ -13,14 +15,37 @@ import { VueDraggable } from 'vue-draggable-plus'
 const auth = useAuthStore()
 const router = useRouter()
 const clients = ref([])
+const orderLists = ref([])
 const loading = ref(true)
 const showDelete = ref(false)
 const deletingId = ref(null)
 
-// sortedGroups is the source of truth for display order; vue-draggable-plus mutates it directly
-const sortedGroups = ref([])
+const showCreate = ref(false)
+const saving = ref(false)
+const createForm = ref({ name: '', orderListId: null })
 
-let unsubGroups, unsubClients
+// sortedGroups is the full list in display order; visibleGroups (derived) is what
+// vue-draggable-plus mutates directly, so it must be a plain ref, not a computed
+const sortedGroups = ref([])
+const visibleGroups = ref([])
+
+function rebuildVisibleGroups() {
+  visibleGroups.value = sortedGroups.value.filter(g => {
+    if (!g.orderListId) return true
+    const list = orderLists.value.find(l => l.id === g.orderListId)
+    return !list?.archived
+  })
+}
+
+watch([sortedGroups, orderLists], rebuildVisibleGroups, { deep: true })
+
+const activeOrderListOptions = computed(() =>
+  orderLists.value
+    .filter(l => !l.archived)
+    .map(l => ({ id: l.id, label: l.date || 'Sin fecha' }))
+)
+
+let unsubGroups, unsubClients, unsubOrderLists
 
 onMounted(() => {
   unsubGroups = subscribeToCollection(auth.companyId, 'deliveryGroups', (items) => {
@@ -35,25 +60,45 @@ onMounted(() => {
   unsubClients = subscribeToCollection(auth.companyId, 'clients', (items) => {
     clients.value = items.sort((a, b) => a.name.localeCompare(b.name))
   })
+  unsubOrderLists = subscribeToCollection(auth.companyId, 'orderLists', (items) => {
+    orderLists.value = items
+  })
 })
 
 onUnmounted(() => {
   unsubGroups?.()
   unsubClients?.()
+  unsubOrderLists?.()
 })
 
 function getClientName(id) {
   return clients.value.find(c => c.id === id)?.name || 'Eliminado'
 }
 
+function getOrderListLabel(id) {
+  const list = orderLists.value.find(l => l.id === id)
+  return list?.date || null
+}
+
+function openCreate() {
+  createForm.value = { name: '', orderListId: null }
+  showCreate.value = true
+}
+
 async function createGroup() {
-  const name = prompt('Nombre del grupo de entrega:')
-  if (!name?.trim()) return
-  await createDocument(auth.companyId, 'deliveryGroups', {
-    name: name.trim(),
-    clientIds: [],
-    order: sortedGroups.value.length,
-  })
+  if (!createForm.value.name.trim()) return
+  saving.value = true
+  try {
+    await createDocument(auth.companyId, 'deliveryGroups', {
+      name: createForm.value.name.trim(),
+      clientIds: [],
+      order: sortedGroups.value.length,
+      orderListId: createForm.value.orderListId || null,
+    })
+    showCreate.value = false
+  } finally {
+    saving.value = false
+  }
 }
 
 function confirmDelete(id) {
@@ -69,7 +114,7 @@ async function remove() {
 
 async function saveOrder() {
   const batch = writeBatch(db)
-  sortedGroups.value.forEach((group, index) => {
+  visibleGroups.value.forEach((group, index) => {
     const ref = doc(db, `companies/${auth.companyId}/deliveryGroups`, group.id)
     batch.update(ref, { order: index })
   })
@@ -85,7 +130,7 @@ async function saveOrder() {
       :showButton="true"
       buttonText="Crear grupo"
       buttonIcon="➕"
-      @action="createGroup"
+      @action="openCreate"
     />
 
     <div v-if="loading" class="space-y-3">
@@ -93,24 +138,24 @@ async function saveOrder() {
     </div>
 
     <EmptyState
-      v-else-if="!sortedGroups.length"
+      v-else-if="!visibleGroups.length"
       icon="🚚"
       title="No hay grupos de entrega"
       description="Crea un grupo para organizar las entregas"
       actionText="Crear grupo"
-      @action="createGroup"
+      @action="openCreate"
     />
 
     <VueDraggable
       v-else
-      v-model="sortedGroups"
+      v-model="visibleGroups"
       handle=".drag-handle"
       :animation="150"
       class="space-y-3"
       @end="saveOrder"
     >
       <div
-        v-for="group in sortedGroups"
+        v-for="group in visibleGroups"
         :key="group.id"
         class="rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md"
       >
@@ -124,7 +169,15 @@ async function saveOrder() {
               class="min-w-0 flex-1 cursor-pointer"
               @click="router.push(`/delivery-groups/${group.id}`)"
             >
-              <h3 class="font-semibold text-gray-900">{{ group.name }}</h3>
+              <div class="flex items-center gap-2">
+                <h3 class="font-semibold text-gray-900">{{ group.name }}</h3>
+                <span
+                  v-if="getOrderListLabel(group.orderListId)"
+                  class="inline-block rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                >
+                  📋 {{ getOrderListLabel(group.orderListId) }}
+                </span>
+              </div>
               <p class="mt-1 text-sm text-gray-500">{{ group.clientIds?.length || 0 }} clientes</p>
             </div>
           </div>
@@ -146,6 +199,32 @@ async function saveOrder() {
         </div>
       </div>
     </VueDraggable>
+
+    <Modal :open="showCreate" title="Crear grupo de entrega" @close="showCreate = false">
+      <form @submit.prevent="createGroup" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Nombre *</label>
+          <input v-model="createForm.name" type="text" required autofocus
+            class="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" />
+        </div>
+        <SearchSelect
+          v-model="createForm.orderListId"
+          :options="activeOrderListOptions"
+          placeholder="Buscar lista de pedidos..."
+          label="Lista de pedidos (opcional)"
+        />
+        <div class="flex gap-3 pt-2">
+          <button type="button" @click="showCreate = false"
+            class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Cancelar
+          </button>
+          <button type="submit" :disabled="saving || !createForm.name.trim()"
+            class="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+            {{ saving ? 'Guardando...' : 'Crear' }}
+          </button>
+        </div>
+      </form>
+    </Modal>
 
     <DeleteConfirm
       :open="showDelete"

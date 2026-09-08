@@ -28,6 +28,7 @@ const routes = [
       { path: '', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
       { path: 'clients', name: 'Clients', component: () => import('../views/Clients.vue') },
       { path: 'products', name: 'Products', component: () => import('../views/Products.vue') },
+      { path: 'quotation', name: 'Quotation', component: () => import('../views/Quotation.vue') },
       { path: 'order-lists', name: 'OrderLists', component: () => import('../views/OrderLists.vue') },
       { path: 'order-lists/:id', name: 'OrderListDetail', component: () => import('../views/OrderListDetail.vue') },
       { path: 'batches', name: 'Batches', component: () => import('../views/Batches.vue') },

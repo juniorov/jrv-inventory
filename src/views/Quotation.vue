@@ -59,6 +59,7 @@ function onSelectProduct(productId) {
 
 const showResult = computed(() => selectedProductId.value && cantidad.value > 0 && precioMayorista.value > 0)
 
+const totalAPagar = computed(() => precioMayorista.value * cantidad.value)
 const costoTotal = computed(() => costoUnitario.value * cantidad.value)
 const gananciaUnitariaReal = computed(() => precioReal.value - costoUnitario.value)
 const margenReal = computed(() => precioReal.value > 0 ? (gananciaUnitariaReal.value / precioReal.value) * 100 : 0)
@@ -143,6 +144,11 @@ const vendiendoBajoCosto = computed(() => precioMayorista.value < costoUnitario.
 
         <div v-if="vendiendoBajoCosto" class="mb-4 rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
           ⚠️ Estarías vendiendo por debajo del costo de producción.
+        </div>
+
+        <div class="mb-4 rounded-xl bg-emerald-50 px-4 py-3">
+          <p class="text-xs font-medium text-emerald-700">Total a pagar por el cliente ({{ cantidad }} unidades)</p>
+          <p class="text-2xl font-bold text-emerald-700">{{ formatCurrency(totalAPagar) }}</p>
         </div>
 
         <div class="space-y-1 text-sm">
